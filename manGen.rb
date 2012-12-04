@@ -15,6 +15,7 @@ class ManifestGenerator
 		@detailRecords = []
 		@mailClass = ''
 		@baselineFile = 'baseline.raw'
+		@rateFile = 'rates.csv'
 		@rateIngredients = []
 		@stcList = []
 		@originZIP = '20260'  #Temporarily hard coded for simplicity.
@@ -26,6 +27,7 @@ class ManifestGenerator
 		@permitZIP = '20260'#Temporarily hard coded for simplicity.
 		@type = '1'
 		@isDomestic = false
+		@doTrim = false
 		
 		pullClasses('mailclasses.txt')
 		pullHeaderFields('header.csv')
@@ -74,7 +76,7 @@ class ManifestGenerator
 		
 		@domClasses = @mailClasses.dup
 		@domClasses.keep_if do |mail|
-			['BB','BL','BP','BS','EX','FC','MR','PM','PS','RP','S2','SA'].include?(mail)
+			['BB','BL','BS','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail)
 		end
 		
 		@intClasses = @mailClasses.dup
@@ -122,14 +124,17 @@ class ManifestGenerator
 	#Pull Rates -- take (mailClass)
 	def pullRates()
 		eachRate = {}
-		rateFile = File.open("#{@mailClass}.csv", 'r')
+		#rateFile = File.open("#{@mailClass}.csv", 'r')
+		rateFile = File.open(@rateFile, 'r')
 		fieldNames = rateFile.readline.chomp.split(',')
 		rateFile.each_line do |row|
 			rate = row.chomp.split(',')
-			fieldNames.each_with_index do |field, index|
-				eachRate.merge!(field => rate[index])
+			if rate.include?(@mailClass)
+				fieldNames.each_with_index do |field, index|
+					eachRate.merge!(field => rate[index])
+				end
 			end
-			@rateIngredients << eachRate.dup
+			@rateIngredients << eachRate.dup if eachRate.empty? == false
 			eachRate.clear
 		end
 		rateFile.close()
@@ -148,10 +153,21 @@ class ManifestGenerator
 					eachSTC.merge!(field => '') if stc[index] == nil
 				end
 			end
-			@stcList << eachSTC.dup if eachSTC.empty? == false
+			
+			if @doTrim
+				@stcList << eachSTC.dup if eachSTC['Service Type Code'] == getBaseSTC(@mailClass) and eachSTC.empty? == false
+			else
+				@stcList << eachSTC.dup if eachSTC.empty? == false
+			end
 			eachSTC.clear
 		end
 		stcFile.close()
+	end
+	#*********************************************************************************************************************************
+	#Get Base STC -- provides the STC for the most basic STC combination
+	def getBaseSTC(mailClass)
+		baseSTCs = { 'BB' => '458', 'BL' => '582', 'BP' => '378', 'BS' => '521', 'CM' => '760', 'EX' => '710', 'FC' => '742', 'LW' => '789', 'PM' => '025', 'PS' => '642', 'RP' => '023', 'S2' => '703', 'SA' => '702' }
+		return baseSTCs[mailClass]
 	end
 	#*********************************************************************************************************************************
 	#Insurance Check -- provide strings to populate 'Value of Article' based on insurance STCs, either '0000000' for 930 or '0050000' for 931
@@ -161,7 +177,7 @@ class ManifestGenerator
 		elsif stc == '931' #Insurance > $200
 			return '0050000' # $500
 		else
-			return '0000000' # $0 since no insurance STC
+			return false #No insurance extra service.
 		end
 	end
 	#*********************************************************************************************************************************
@@ -291,24 +307,38 @@ class ManifestGenerator
 		@rateIngredients.each do |rate|
 			baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
 			baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
+			baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
 			
 			rate.each do |key, val|
 				baseline[key] = val if baseline.has_key?(key)
 			end
 			
-			@stcList.each do |stc|
-				stc.each do |stcKey, stcVal|
-					baseline[stcKey] = stcVal if baseline.has_key?(stcKey)
-					baseline['Value of Article'] = insCheck(stcVal)
-					baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
-				end
-					
+			if @mailClass == 'MR' #Catches MR which has no STC combinations..
+				baseline['Service Type Code'] = '???' #Need to figure out what the STC is for this...not in STC reference spreadsheet.
 				baseline.each_value do |value|
 					detail = detail + "#{value}|"
 				end
 				@recordCount = @recordCount + 1
 				details << detail
 				detail = ''
+			else
+				@stcList.each do |stc|
+					stc.each do |stcKey, stcVal|
+						baseline[stcKey] = stcVal if baseline.has_key?(stcKey)
+						ins = insCheck(stcVal)
+						baseline['Value of Article'] = ins if ins != false
+						baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
+					end
+				
+					baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
+				
+					baseline.each_value do |value|
+						detail = detail + "#{value}|"
+					end
+					@recordCount = @recordCount + 1
+					details << detail
+					detail = ''
+				end
 			end
 			baseline.clear
 			baseline = @detailVals.dup
@@ -339,6 +369,7 @@ class ManifestGenerator
 			
 			baseline['Destination Country Code'], baseline['Customer Reference Number 1'] = getIntInfo()
 			baseline['Tracking Number'] = picGen('')
+			baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
 
 			baseline.each_value do |value|
 				detail = detail + "#{value}|"
@@ -369,6 +400,7 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Handler for Mail Class 'ALL' to build all possible files
 	def buildAll()
+		trim()
 		fileCount = 0
 		totalCount = 0
 		@mailClasses.each do |mailClass|
@@ -380,8 +412,22 @@ class ManifestGenerator
 			@stcList.clear
 			fileCount = fileCount + 1
 			totalCount = totalCount + @recordCount
+			@recordCount = 0
 		end
 		puts "Finished building #{fileCount} files for a total of #{totalCount} unique detail records."
+	end
+	#*********************************************************************************************************************************
+	#Determines whether a build includes all STC combinations, or only the base.
+	def trim()
+		puts "Enter 't' to trim the build to only the base STC or 'a' for all combinations."
+		prompt
+		input = gets.downcase.chomp
+		while input != 't' and input != 'a'
+			puts "#{input} is not a valid response, please select either 't' or 'a'."
+			input = gets.downcase.chomp
+		end
+		@doTrim = true if input == 't'
+		@doTrim = false if input == 'a'
 	end
 	#*********************************************************************************************************************************
 end
