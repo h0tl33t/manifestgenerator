@@ -23,7 +23,8 @@ class ManifestGenerator
 		@facilityZIP = '20260'#Temporarily hard coded for simplicity.
 		@recordCount = 0
 		@time = Time.now.strftime('%H%M%S')
-		@date = Time.now.strftime('%Y%m%d')
+		#@date = Time.now.strftime('%Y%m%d')
+		@date = '20121201'  #Temporarily hard coded to test pre-price change date.
 		@permit = '33'		#Temporarily hard coded for simplicity.
 		@permitZIP = '20260'#Temporarily hard coded for simplicity.
 		@type = '1'
@@ -130,7 +131,7 @@ class ManifestGenerator
 		fieldNames = rateFile.readline.chomp.split(',')
 		rateFile.each_line do |row|
 			rate = row.chomp.split(',')
-			if rate.include?(@mailClass)
+			if rate[0] == @mailClass
 				fieldNames.each_with_index do |field, index|
 					eachRate.merge!(field => rate[index])
 				end
