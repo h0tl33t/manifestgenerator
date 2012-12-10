@@ -239,6 +239,25 @@ class ManifestGenerator
 		return wholeNum + decimal
 	end
 	#*********************************************************************************************************************************
+	#Required Volume Check -- take (rateInd) and return dimensions (length, height, width)
+	def volumeCheck(rateInd)
+		minVolumeRequired = ['DR', 'DN']
+		validVolumeRequired = ['CP', 'P5', 'P6', 'P7', 'P8', 'P9']
+		
+		if minVolumeRequired.include?(rateInd)
+			return '01300' #13 inches (12x12x12 is minimum for DR/DN)
+		elsif validVolumeRequired.include?(rateInd)
+			minVol = 0.00
+			maxVol = 6.00
+			part = rand(minVol..maxVol).round(2).to_s.split('.')
+			wholeNum = part[0].rjust(3, '0')
+			decimal = part[1].ljust(2, '0')
+			return wholeNum + decimal
+		else
+			return false
+		end
+	end
+	#*********************************************************************************************************************************
 	#International Country Code and Zone Calculation
 	def getIntInfo()
 		if @mailClass == 'PG'
@@ -318,15 +337,18 @@ class ManifestGenerator
 		details = []
 		@recordCount = 0
 		@rateIngredients.each do |rate|
-			baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-			baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-			baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
+			#baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
+			#baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
+			#baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
 			
 			rate.each do |key, val|
 				baseline[key] = val if baseline.has_key?(key)
 			end
 			
 			if @mailClass == 'MR' #Catches MR which has no STC combinations..
+				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
+				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
+				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
 				baseline['Service Type Code'] = '???' #Need to figure out what the STC is for this...not in STC reference spreadsheet.
 				baseline.each_value do |value|
 					detail = detail + "#{value}|"
@@ -334,6 +356,33 @@ class ManifestGenerator
 				@recordCount = @recordCount + 1
 				details << detail
 				detail = ''
+			elsif rate['Processing Category'] == 'O' #Catch Open & Distribute
+				#nsaOnly = ['O5', 'O6', 'O7']
+				#next if ['O5', 'O6', 'O7'].include?(rate['Rate Indicator']) #Catch NSA Only O&D Rates and temporarily skip over these rates
+				baseline['Open and Distribute Contents Indicator'] = 'EP' #Required field for O&D, EP = Parcels/Electronic Payment
+				baseline['Destination Facility Type'] = rate['Destination Rate Indicator']
+				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
+				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
+				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
+				if @mailClass == 'PM'
+					pmod1 = '123' #Priority Mail Open & Distribute STC Value
+					pmod2 = '430' #Priority Mail Open & Distribute 1st Service Code
+					baseline['Service Type Code'] = pmod1
+					baseline['Extra Service Code 1st Service'] = pmod2
+					baseline['Tracking Number'] = picGen(pmod1)
+				elsif @mailClass == 'EX'
+					exod = '723' #Express Mail Open & Distribute STC Value
+					baseline['Service Type Code'] = exod
+					baseline['Tracking Number'] = picGen(exod)
+					baseline['Delivery Option Indicator'] = 'E' #Required for EXOD
+				end
+				baseline.each_value do |value|
+					detail = detail + "#{value}|"
+				end
+				@recordCount = @recordCount + 1
+				details << detail
+				detail = ''
+				
 			else
 				@stcList.each do |stc|
 					stc.each do |stcKey, stcVal|
@@ -342,7 +391,16 @@ class ManifestGenerator
 						baseline['Value of Article'] = ins if ins != false
 						baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
 					end
-				
+					
+					volCheck = volumeCheck(rate['Rate Indicator'])
+					if volCheck != false
+						baseline['Length'] = volCheck
+						baseline['Width'] = volCheck
+						baseline['Height'] = volCheck
+					end
+					
+					baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
+					baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
 					baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
 					baseline.each_value do |value|
 						detail = detail + "#{value}|"
