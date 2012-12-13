@@ -15,7 +15,8 @@ class ManifestGenerator
 		@detailRecords = []
 		@mailClass = ''
 		@baselineFile = 'baseline.raw'
-		@rateFile = 'rates.csv'
+		@rateFile = 'rates.csv'  #To test current valid rate ingredients
+		#@rateFile = 'oldrates.csv'  #To negative test invalid/removed rate ingredients...if activating, also activate @domClasses with BP
 		@fileName = ''
 		@rateIngredients = []
 		@stcList = []
@@ -31,6 +32,8 @@ class ManifestGenerator
 		@isDomestic = false
 		@trim = ''
 		
+		@nsa = false
+		
 		pullClasses('mailclasses.txt')
 		pullHeaderFields('header.csv')
 		pullDetailFields('detail.csv')
@@ -42,6 +45,21 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	def prompt()
 		print "> "
+	end
+	#*********************************************************************************************************************************
+	def isNSA()
+		puts "Do you want to generate this file for NSA rate purposes (y/n)? (Utilizes Custom Contracts, MID 911911911, PI 911)"
+		prompt
+		answer = gets.chomp.downcase
+		if answer == 'y'
+			puts "The generator will utilize the NSA mailer Custom Contracts (MID 911911911, PI 911)"
+			@mid = '911911911'
+			@permit = '911'
+		else
+			@mid = '990001337'
+			@permit = '33'
+		end
+		@nsa = true
 	end
 	#*********************************************************************************************************************************
 	def setMID()
@@ -79,6 +97,7 @@ class ManifestGenerator
 		@domClasses = @mailClasses.dup
 		@domClasses.keep_if do |mail|
 			['BB','BL','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail)
+			#['BB','BL','BP','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail) #Has invalid/removed mail classes for negative testing.
 		end
 		
 		@intClasses = @mailClasses.dup
@@ -248,7 +267,7 @@ class ManifestGenerator
 			return '01300' #13 inches (12x12x12 is minimum for DR/DN)
 		elsif validVolumeRequired.include?(rateInd)
 			minVol = 0.00
-			maxVol = 6.00
+			maxVol = 12.00  #9.00 got up to Tier4...but no tier 5.  Upping to 12.00
 			part = rand(minVol..maxVol).round(2).to_s.split('.')
 			wholeNum = part[0].rjust(3, '0')
 			decimal = part[1].ljust(2, '0')
@@ -319,6 +338,8 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Detail Generator
 	def detailGen()
+		isNSA() if @nsa == false #Checks to see if user wants to utilize NSA mailer information or not.  Only runs once according to @nsa.
+		
 		@detailVals['Mail Class'] = @mailClass
 		@detailVals['Mail Owner Mailer ID'] = @mid
 		@detailVals['Payment Account Number'] = @permit
@@ -357,7 +378,7 @@ class ManifestGenerator
 				details << detail
 				detail = ''
 			elsif rate['Processing Category'] == 'O' #Catch Open & Distribute
-				#nsaOnly = ['O5', 'O6', 'O7']
+				#nsaOnly = ['O5', 'O6', 'O7'] #For potential future use.
 				#next if ['O5', 'O6', 'O7'].include?(rate['Rate Indicator']) #Catch NSA Only O&D Rates and temporarily skip over these rates
 				baseline['Open and Distribute Contents Indicator'] = 'EP' #Required field for O&D, EP = Parcels/Electronic Payment
 				baseline['Destination Facility Type'] = rate['Destination Rate Indicator']
@@ -382,7 +403,6 @@ class ManifestGenerator
 				@recordCount = @recordCount + 1
 				details << detail
 				detail = ''
-				
 			else
 				@stcList.each do |stc|
 					stc.each do |stcKey, stcVal|
@@ -402,6 +422,10 @@ class ManifestGenerator
 					baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
 					baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
 					baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
+					
+					baseline['Domestic Zone'] = '08' if rate['Rate Indicator'] == 'PM' #Catch Priority Mail 'PM' which requires ZIP starting in 963 = Zone 8.
+					baseline['Destination ZIP Code'] = '96303' if rate['Rate Indicator'] == 'PM' #Assign 93603.
+					
 					baseline.each_value do |value|
 						detail = detail + "#{value}|"
 					end
@@ -475,18 +499,21 @@ class ManifestGenerator
 	def fileGen()
 		setFileType()
 		filenameGen()
-		file = File.open("#{@fileName}.raw", 'w')
-		details = detailGen()
-		file.write(headerGen())
-		details.each do |line|
-			file.write("\n")
-			file.write(line)
+		details = detailGen()	
+		if details.empty? == false
+			file = File.open("#{@fileName}.raw", 'w')
+			file.write(headerGen())
+			details.each do |line|
+				file.write("\n")
+				file.write(line)
+			end
+			file.close()
+			buildCEW()
+			buildSEM()
+			puts "Built raw/cew/sem for mail class #{@mailClass}!"
 		end
 		details.clear
-		file.close()
-		buildCEW()
-		buildSEM()
-		puts "Built raw/cew/sem for mail class #{@mailClass}!"
+		sampleGen()
 	end
 	#*********************************************************************************************************************************
 	#Handler for Mail Class 'ALL' to build all possible files
@@ -515,8 +542,136 @@ class ManifestGenerator
 		@trim = gets.downcase.chomp
 		while @trim != 'r' and @trim != 'f' and @trim != 'a'
 			puts "#{@trim} is not a valid response, please select either 'r', 'f', or 'a'."
+			prompt
 			@trim = gets.downcase.chomp
 		end
+	end
+	#*********************************************************************************************************************************
+	#Handler for Sample Building
+	def sampleGen()
+		puts "Enter 's' to generate a sample for this file.  (Anything else to continue without building a sample.)"
+		prompt
+		input = gets.downcase.chomp
+		if input == 's'
+			if @domClasses.include?(@mailClass) #Domestic
+				puts "What type of sample file? 'i' for IMD, 'pass' for PASS, 'pos' for POS, or 's' for STATS."
+				prompt
+				sType = gets.downcase.chomp
+				while not ['i', 'pass', 'pos', 's'].include?(sType)
+					puts "#{sType} is not a valid selection.  Please enter 'i' for IMD, 'pass' for PASS, 'pos' for POS, or 's' for STATS."
+					prompt
+					sType = gets.downcase.chomp
+				end
+				case sType #Sample Type
+				when 'i' #IMD
+					buildIMD()
+				when 'pass' #PASS
+					#stuff
+				when 'pos' #POS
+					#stuff
+				when 's' #STATS
+					#stuff
+				end
+			elsif @intClasses.include?(@mailClass)
+				buildIMD()
+			end
+		end
+	end
+	#*********************************************************************************************************************************
+	#Pulls the detail records for sample usage.
+	def pullDetails()
+		detail = {}
+		allDetails = []
+		count = 0
+		file = File.open("#{@fileName}.raw", 'r')
+		file.each_line do |line|
+			array = line.chomp.split('|')
+			if count > 0 and allDetails.size < 999
+				@detailFields.each_with_index do |field, i|
+					detail.merge!(field => array[i]) if array[i] != nil
+					detail.merge!(field => '') if array[i] == nil
+				end
+				allDetails << detail.dup if detail['Barcode'] == '1'
+				detail.clear()
+			end
+			count = count + 1
+		end
+		file.close()
+		return allDetails
+	end
+	#*********************************************************************************************************************************
+	#Builds out an IMD File
+	def buildIMD()
+		details = pullDetails()
+		numRecords = details.size.to_s.rjust(3, '0')
+		imdFile = File.open("#{@fileName}_IMD.evs", 'w')
+		imdHeader = ("eVS1H#{@facilityZIP}     5#{@date}THDSN0N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
+		imdFile.write(imdHeader)
+		
+		details.each do |d| #d is each detail record in hash format
+			pic = d['Tracking Number'].ljust(34, ' ')
+			weight = weightReformat(d['Weight'])
+			length = sizeReformat(d['Length'])
+			height = sizeReformat(d['Height'])
+			width = sizeReformat(d['Width'])
+			girth = sizeReformat(d['Dimensional Weight'])
+			zip = d['Destination ZIP Code'] if @domClasses.include?(d['Mail Class'])
+			zip = '00000' if @intClasses.include?(d['Mail Class'])
+			
+			rateType = imdRate(d['Rate Indicator'])
+			if rateType == 'shape'
+				shape = d['Rate Indicator']
+				sortation = 'NA'
+			elsif rateType == 'sortation'
+				sortation = d['Rate Indicator']
+				shape = 'NA'
+			else
+				next
+			end
+			
+			countryCode = '  ' if @domClasses.include?(d['Mail Class'])
+			countryCode = d['Destination Country Code'] if @intClasses.include?(d['Mail Class'])
+			
+			sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        #{Time.now.strftime('%m%d%Y')}#{@time}NNNNNNNNNN"
+			imdFile.write("\n")
+			imdFile.write(sampleLine)
+		end
+		imdSem = File.open("#{@fileName}_IMD.sem", 'w')
+		puts "Built IMD sample (evs/sem) for #{@mailClass}!"
+	end
+	#*********************************************************************************************************************************
+	#Determine IMD Rate Indicator
+	def imdRate(rate)
+		shapeFile = File.open('shapeIndicators.csv', 'r') #Get shape-based rate indicators
+		shapes = shapeFile.gets.split(',')
+		shapeFile.close()
+		return 'shape' if shapes.include?(rate)
+		
+		sortationFile = File.open('sortationLevels.csv', 'r') #Get sortation levels
+		sortations = sortationFile.gets.split(',')
+		sortationFile.close()
+		return 'sortation' if sortations.include?(rate)
+	end
+	#*********************************************************************************************************************************
+	#Re-format weight for IMD Files
+	def weightReformat(value)
+		wholeNum = value[3, 2] #Pulls the 4th (X) and 5th (Y) digit from the format 000XYdddd where 'd' is the decimal portion of the eVS weight convention
+		decimal = value[5, 4]  #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}"
+	end
+	#*********************************************************************************************************************************
+	#Re-format dimensions for IMD Files
+	def sizeReformat(value)
+		wholeNum = value[0,3] #Pulls the whole number portion of the eVS dimension/size convention
+		decimal = value[3, 2] #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}".ljust(7, '0')
+	end
+	#*********************************************************************************************************************************
+	#Builds out a PASS File
+	def buildPASS()
+		imdFile = File.open("TRP_1EVS_OUT_#{@date}.pass", 'w')
+		
+		imdSem = File.open("TRP_1EVS_OUT_#{@date}.sem", 'w')
 	end
 	#*********************************************************************************************************************************
 end
