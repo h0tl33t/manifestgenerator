@@ -264,7 +264,7 @@ class ManifestGenerator
 		validVolumeRequired = ['CP', 'P5', 'P6', 'P7', 'P8', 'P9']
 		
 		if minVolumeRequired.include?(rateInd)
-			return '01300' #13 inches (12x12x12 is minimum for DR/DN)
+			return '01400' #14 inches (1728 cubic inches is minimum for DR/DN...DN vaolume is multiplied by 0.785)
 		elsif validVolumeRequired.include?(rateInd)
 			minVol = 0.00
 			maxVol = 12.00  #9.00 got up to Tier4...but no tier 5.  Upping to 12.00
@@ -307,7 +307,7 @@ class ManifestGenerator
 	def setFileType()
 		if @mailClass == 'RP' or @mailClass == 'MR'
 			@mid = '900484337'
-			@permit = '151000'
+			@permit = '151001'
 			@permitZIP = '20260'
 			@type = '3'
 		else
@@ -358,10 +358,6 @@ class ManifestGenerator
 		details = []
 		@recordCount = 0
 		@rateIngredients.each do |rate|
-			#baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-			#baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-			#baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
-			
 			rate.each do |key, val|
 				baseline[key] = val if baseline.has_key?(key)
 			end
@@ -419,6 +415,15 @@ class ManifestGenerator
 						baseline['Height'] = volCheck
 					end
 					
+					#Catch any rates with Discount Type Codes
+					baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*'
+					
+					#Catch Non-Profit SA and S2 Rate Ingredients (for both published and NSA)
+					if (@mailClass == 'S2' or @mailClass == 'SA') and ['N5', 'ND', 'NM', 'NT', 'NR', 'NH', 'NB'].include?(rate['Rate Indicator'])
+						baseline['Payment Account Number'] = '333' if @mid == '990001337'
+						baseline['Payment Account Number'] = '9911' if @mid == '911911911'
+					end
+
 					baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
 					baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
 					baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
@@ -497,6 +502,7 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#File Generator
 	def fileGen()
+		trim()
 		setFileType()
 		filenameGen()
 		details = detailGen()	
@@ -518,7 +524,7 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Handler for Mail Class 'ALL' to build all possible files
 	def buildAll()
-		trim()
+		#trim() Moved to fileGen (will give trim options for each single build)
 		fileCount = 0
 		totalCount = 0
 		@mailClasses.each do |mailClass|
@@ -570,7 +576,7 @@ class ManifestGenerator
 				when 'pos' #POS
 					#stuff
 				when 's' #STATS
-					#stuff
+					buildSTATS()
 				end
 			elsif @intClasses.include?(@mailClass)
 				buildIMD()
@@ -586,7 +592,7 @@ class ManifestGenerator
 		file = File.open("#{@fileName}.raw", 'r')
 		file.each_line do |line|
 			array = line.chomp.split('|')
-			if count > 0 and allDetails.size < 999
+			if count > 0
 				@detailFields.each_with_index do |field, i|
 					detail.merge!(field => array[i]) if array[i] != nil
 					detail.merge!(field => '') if array[i] == nil
@@ -604,17 +610,18 @@ class ManifestGenerator
 	def buildIMD()
 		details = pullDetails()
 		numRecords = details.size.to_s.rjust(3, '0')
+		numRecords = '999' if numRecords.to_i > 999
 		imdFile = File.open("#{@fileName}_IMD.evs", 'w')
-		imdHeader = ("eVS1H#{@facilityZIP}     5#{@date}THDSN0N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
+		imdHeader = ("eVS1H#{@facilityZIP}     5#{Time.now.strftime("%m%d%Y")}THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
 		imdFile.write(imdHeader)
 		
 		details.each do |d| #d is each detail record in hash format
 			pic = d['Tracking Number'].ljust(34, ' ')
-			weight = weightReformat(d['Weight'])
-			length = sizeReformat(d['Length'])
-			height = sizeReformat(d['Height'])
-			width = sizeReformat(d['Width'])
-			girth = sizeReformat(d['Dimensional Weight'])
+			weight = imdWeight(d['Weight'])
+			length = imdSize(d['Length'])
+			height = imdSize(d['Height'])
+			width = imdSize(d['Width'])
+			girth = imdSize(d['Dimensional Weight'])
 			zip = d['Destination ZIP Code'] if @domClasses.include?(d['Mail Class'])
 			zip = '00000' if @intClasses.include?(d['Mail Class'])
 			
@@ -654,24 +661,168 @@ class ManifestGenerator
 	end
 	#*********************************************************************************************************************************
 	#Re-format weight for IMD Files
-	def weightReformat(value)
+	def imdWeight(value)
 		wholeNum = value[3, 2] #Pulls the 4th (X) and 5th (Y) digit from the format 000XYdddd where 'd' is the decimal portion of the eVS weight convention
 		decimal = value[5, 4]  #Pulls the decimal portion
 		return "#{wholeNum}.#{decimal}"
 	end
 	#*********************************************************************************************************************************
 	#Re-format dimensions for IMD Files
-	def sizeReformat(value)
+	def imdSize(value)
 		wholeNum = value[0,3] #Pulls the whole number portion of the eVS dimension/size convention
 		decimal = value[3, 2] #Pulls the decimal portion
 		return "#{wholeNum}.#{decimal}".ljust(7, '0')
 	end
 	#*********************************************************************************************************************************
+	#Re-format weight for STATS Files
+	def statsWeight(value)
+		puts "Starting Weight:  #{value}"
+		pounds = value[2, 3] #Pulls the 3rd (X), 4th (Y) and 5th (Z) digit from the format 00XYZdddd where 'd' is the decimal portion of the eVS weight convention
+		puts "Pounds:  #{pounds}"
+		ounces = ((('0.' + value[5, 4]).to_f)*16).round(1).to_s
+		ounces = ounces.to_f.round().to_s.rjust(3, ' ') if ounces.size > 3
+		puts "Ounces:  #{ounces}"
+		return pounds, ounces
+	end
+	#*********************************************************************************************************************************
+	#Re-format dimensions for STATS Files
+	def statsSize(value)
+		wholeNum = value[0,3] #Pulls the whole number portion of the eVS dimension/size convention
+		decimal = value[3, 2] #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}".to_f.round.to_s
+	end
+	#*********************************************************************************************************************************
+	#Calculates STATS Value for Mail Class
+	def statsClass(value)
+		if value == 'FC'
+			return '10' #Code for First Class Mail
+		elsif value == 'PM' or value == 'CM'
+			return '20' #Code for Priority Mail
+		elsif value == 'S2'
+			return '40' #Code for Standard
+		elsif value == 'SA'
+			return '90' #Code for Standard Non-Profit
+		elsif value == 'CP'
+			return '7G' #Code for Priority Mail International
+		elsif value == 'LC'
+			return '7K' #Code for FCPIS
+		elsif value == 'PG' or value == 'IE'
+			return '70' #Code for GxG or EMI
+		elsif value == 'BB'
+			return '52' #Code for Bound Printed Matter
+		elsif value == 'BL'
+			return '54' #Code for Library Mail
+		elsif value == 'BS'
+			return '53' #Code for Media Mail
+		elsif value == 'RP'
+			return '5I' #Code for PRS
+		elsif value == 'PS'
+			return '5H' #Code for Parcel Select
+		else
+			return '50' #Package Services Default
+		end
+	end
+	#*********************************************************************************************************************************
+	#Determine Shape Value for STATS Samples, takes (Processing Category, Rate Indicator)
+	def statsShape(pc, ri)
+		if pc == '1'
+			return '3' if ri == 'E3' or ri == 'E4' #Flat Rate Envelope
+			return '1'  #Letters
+		elsif pc == '2'
+			return '3' if ri == 'E3' or ri == 'E4' or ri == 'FE' #Flat Rate Envelope
+			return 'I' if ri == 'E5' or ri == 'E6' or ri == 'E7' #Legal Flat Rate Envelope
+			return '9' if ri == 'FP' #Flat Rate Padded Envelope
+			return '2'  #Flats
+		elsif pc == '3'
+			return 'J' if ri == 'C6'
+			return 'K' if ri == 'C7'
+			return 'L' if ri == 'C8'
+			return '8' if ri == 'E8' or ri == 'E9' or ri == 'EE' #Regular/Medium Flat Rate Box
+			
+			return '5' #Parcels
+		elsif pc == '4'
+		
+			return '5' #Parcels
+		elsif pc == '5'
+			return '9' if ri == 'FP' #Flat Rate Padded Envelope
+			return 'F' if ri == 'FS' #Small Flat Rate Box
+			return '8' if ri == 'FB' #Regular/Medium Flat Rate Box
+			return 'D' if ri == 'PL' #Large Flat Rate Box
+			return 'E' if ri == 'PM' #Large Flat Rate Military Box
+			return '5' #Parcels
+		elsif pc == 'O'
+			return '7' #PMOD/Pallets
+		else
+			return '0' #Default/Fill
+		end
+	end
+	#*********************************************************************************************************************************
 	#Builds out a PASS File
 	def buildPASS()
-		imdFile = File.open("TRP_1EVS_OUT_#{@date}.pass", 'w')
+		passFile = File.open("C:\\manifestgenerator\\generated files\\TRP_1EVS_OUT_#{@date}_#{@time}.pass", 'w')
+			#logic
+		passFile.close()
 		
-		imdSem = File.open("TRP_1EVS_OUT_#{@date}.sem", 'w')
+		passSem = File.open("C:\\manifestgenerator\\generated files\\TRP_1EVS_OUT_#{@date}.sem", 'w')
+		passSem.close()
+	end
+	#*********************************************************************************************************************************
+	#Builds out a POS File
+	def buildPOS()
+		posFile = File.open("C:\\manifestgenerator\\generated files\\TRP_P1PRS_OUT_#{Time.now.strftime('%m%d%Y')}_#{@time}.pos", 'w')
+			#logic
+		posFile.close()
+		
+		posSem = File.open("C:\\manifestgenerator\\generated files\\TRP_P1PRS_OUT_#{Time.now.strftime('%m%d%Y')}_#{@time}.sem", 'w')
+		posSem.close()
+	end
+	#*********************************************************************************************************************************
+	#Builds out a STATS File
+	def buildSTATS()
+		details = pullDetails()
+		numRecords = details.size.to_s.rjust(4, ' ')
+		numRecords = '9999' if numRecords.to_i > 9999
+		statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.DAT", 'w')
+		count = 0
+		
+		details.each do |d| #d is each detail record in hash format
+			count = count + 1
+			pic = d['Tracking Number'].ljust(34, ' ')
+			pounds, ounces = statsWeight(d['Weight'])
+			classInfo = statsClass(d['Mail Class'])
+			shape = statsShape(d['Processing Category'], d['Rate Indicator'])
+			
+			case d['Processing Category']
+				when '3'
+					mailable = '1' #Machinable
+				when '5'
+					mailable = '2' #Non-machinable
+				else
+					mailable = '0' #Default/Fill
+			end
+			
+			length = statsSize(d['Length']).rjust(3, ' ')
+			height = statsSize(d['Height']).rjust(2, ' ')
+			width = statsSize(d['Width']).rjust(2, ' ')
+			
+			if @intClasses.include?(d['Mail Class'])
+				zip = '     '
+				countryType = '1' if d['Destination Country Code'] == 'CA'
+				countryType = '1' if d['Destination Country Code'] != 'CA'
+				countryCode = d['Destination Country Code']
+			else
+				zip = d['Destination ZIP Code']
+				countryType = '0'
+				countryCode = '  0'
+			end
+			
+			sampleLine = "661204THDSN0#{@date}RESC#{@time}99901#{count.to_s.rjust(4, '0')} 0                    1#{pounds}#{ounces}#{classInfo}00#{shape}#{mailable}00000#{@originZIP}#{zip}#{length}#{height}#{width}01000#{countryType}    0#{@date}0000002000#{countryCode}#{' '.rjust(20, ' ')}000  #{' '.rjust(13, ' ')}#{@date}01        #{pic}00         000000000000100001000000000000000000000000#{' '.rjust(144, ' ')}000000#{' '.rjust(66, ' ')}"
+			statsFile.write("\n") if count > 1
+			statsFile.write(sampleLine)
+		end
+		statsSem = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.sem", 'w')
+		statsSem.close()
+		puts "Built STATS sample (evs/sem) for #{@mailClass}!"
 	end
 	#*********************************************************************************************************************************
 end
