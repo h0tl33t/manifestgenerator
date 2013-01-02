@@ -24,8 +24,8 @@ class ManifestGenerator
 		@facilityZIP = '20260'#Temporarily hard coded for simplicity.
 		@recordCount = 0
 		@time = Time.now.strftime('%H%M%S')
-		@date = Time.now.strftime('%Y%m%d')
-		#@date = '20121201'  #Temporarily hard coded to test pre-price change date.
+		#@date = Time.now.strftime('%Y%m%d')
+		@date = '20121202' #Temp test date.
 		@permit = '33'		#Temporarily hard coded for simplicity.
 		@permitZIP = '20260'#Temporarily hard coded for simplicity.
 		@type = '1'
@@ -608,43 +608,87 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Builds out an IMD File
 	def buildIMD()
+		#DDU = D, SCF = S, NDC = B, ASF = F, None = N
+		facilityTypes = {'D' => '1', 'S' => '2', 'B' => '3', 'F' => '4', 'N' => '5'} 
 		details = pullDetails()
-		numRecords = details.size.to_s.rjust(3, '0')
-		numRecords = '999' if numRecords.to_i > 999
-		imdFile = File.open("#{@fileName}_IMD.evs", 'w')
-		imdHeader = ("eVS1H#{@facilityZIP}     5#{Time.now.strftime("%m%d%Y")}THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
-		imdFile.write(imdHeader)
-		
-		details.each do |d| #d is each detail record in hash format
-			pic = d['Tracking Number'].ljust(34, ' ')
-			weight = imdWeight(d['Weight'])
-			length = imdSize(d['Length'])
-			height = imdSize(d['Height'])
-			width = imdSize(d['Width'])
-			girth = imdSize(d['Dimensional Weight'])
-			zip = d['Destination ZIP Code'] if @domClasses.include?(d['Mail Class'])
-			zip = '00000' if @intClasses.include?(d['Mail Class'])
+		lines = []
+		sampleCount = 0
+		facilityTypes.keys.each do |dri|
+			details.each do |d|
+				if d['Destination Rate Indicator'] == dri
+					pic = d['Tracking Number'].ljust(34, ' ')
+					weight = imdWeight(d['Weight'])
+					length = imdSize(d['Length'])
+					height = imdSize(d['Height'])
+					width = imdSize(d['Width'])
+					girth = imdSize(d['Dimensional Weight'])
+					zip = d['Destination ZIP Code'] if @domClasses.include?(d['Mail Class'])
+					zip = '00000' if @intClasses.include?(d['Mail Class'])
 			
-			rateType = imdRate(d['Rate Indicator'])
-			if rateType == 'shape'
-				shape = d['Rate Indicator']
-				sortation = 'NA'
-			elsif rateType == 'sortation'
-				sortation = d['Rate Indicator']
-				shape = 'NA'
-			else
-				next
+					rateType = imdRate(d['Rate Indicator'])
+					if d['Mail Class'] == 'IE'
+						if d['Rate Indicator'] == 'E4'
+							shape = 'F4'
+							sortation = 'NA'
+						elsif d['Rate Indicator'] == 'E6'
+							shape = 'F6'
+							sortation = 'NA'
+						elsif d['Rate Indicator'] == 'E8'
+							shape = 'F8'
+							sortation = 'NA'
+						elsif d['Rate Indicator'] == 'PA'
+							shape = 'NA'
+							sortation = 'PA'
+						else
+							if rateType == 'shape'
+								shape = d['Rate Indicator']
+								sortation = 'NA'
+							elsif rateType == 'sortation'
+								sortation = d['Rate Indicator']
+								shape = 'NA'
+							else
+								next
+							end
+						end
+					else
+						if rateType == 'shape'
+							shape = d['Rate Indicator']
+							sortation = 'NA'
+						elsif rateType == 'sortation'
+							sortation = d['Rate Indicator']
+							shape = 'NA'
+						else
+							next
+						end
+					end
+			
+					countryCode = '  ' if @domClasses.include?(d['Mail Class'])
+					countryCode = d['Destination Country Code'] if @intClasses.include?(d['Mail Class'])
+			
+					sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        #{Time.now.strftime('%m%d%Y')}#{@time}NNNNNNNNNN"
+					#sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        11302012#{@time}NNNNNNNNNN"
+					lines << sampleLine
+					sampleCount = sampleCount + 1
+				end
 			end
-			
-			countryCode = '  ' if @domClasses.include?(d['Mail Class'])
-			countryCode = d['Destination Country Code'] if @intClasses.include?(d['Mail Class'])
-			
-			sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        #{Time.now.strftime('%m%d%Y')}#{@time}NNNNNNNNNN"
-			imdFile.write("\n")
-			imdFile.write(sampleLine)
+			if sampleCount > 0
+				numRecords = sampleCount.to_s.rjust(3, '0')
+				imdFile = File.open("#{@fileName}_IMD_#{dri}.evs", 'w')
+				imdHeader = ("eVS1H#{@facilityZIP}     #{facilityTypes[dri]}#{Time.now.strftime("%m%d%Y")}THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
+				#imdHeader = ("eVS1H#{@facilityZIP}     #{facilityTypes[dri]}11302012THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ') #Hard-coded date (12/2/2012) for pre-price change testing.
+				imdFile.write(imdHeader)
+				lines.each do |line|
+					imdFile.write("\n")
+					imdFile.write(line)
+				end
+				imdFile.close()
+				imdSem = File.open("#{@fileName}_IMD_#{dri}.sem", 'w')
+				imdSem.close()
+				lines.clear()
+				sampleCount = 0
+				puts "Built IMD sample (evs/sem) for #{@mailClass} and Facility Type #{dri}!"
+			end
 		end
-		imdSem = File.open("#{@fileName}_IMD.sem", 'w')
-		puts "Built IMD sample (evs/sem) for #{@mailClass}!"
 	end
 	#*********************************************************************************************************************************
 	#Determine IMD Rate Indicator
