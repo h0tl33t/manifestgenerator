@@ -5,6 +5,7 @@ class ManifestGenerator
 		puts "Welcome to the eVS Manifest Generator!"
 
 		@mid = '990001337' #Temporarily hard coded for simplicity.  If necessary, can use setMID() to add in the user prompt for a MID.
+		#@mid = '010101010' #Prod MID
 		@mailClasses = []
 		@domClasses = []
 		@intClasses = []
@@ -24,10 +25,12 @@ class ManifestGenerator
 		@facilityZIP = '20260'#Temporarily hard coded for simplicity.
 		@recordCount = 0
 		@time = Time.now.strftime('%H%M%S')
-		#@date = Time.now.strftime('%Y%m%d')
-		@date = '20121202' #Temp test date.
+		@date = Time.now.strftime('%Y%m%d')
+		#@date = '20130113' #Temp test date.
 		@permit = '33'		#Temporarily hard coded for simplicity.
 		@permitZIP = '20260'#Temporarily hard coded for simplicity.
+		#@permit = '123'		#Prod Permit
+		#@permitZIP = '99999'#Prod Permit ZIP
 		@type = '1'
 		@isDomestic = false
 		@trim = ''
@@ -55,9 +58,6 @@ class ManifestGenerator
 			puts "The generator will utilize the NSA mailer Custom Contracts (MID 911911911, PI 911)"
 			@mid = '911911911'
 			@permit = '911'
-		else
-			@mid = '990001337'
-			@permit = '33'
 		end
 		@nsa = true
 	end
@@ -264,7 +264,7 @@ class ManifestGenerator
 		validVolumeRequired = ['CP', 'P5', 'P6', 'P7', 'P8', 'P9']
 		
 		if minVolumeRequired.include?(rateInd)
-			return '01400' #14 inches (1728 cubic inches is minimum for DR/DN...DN vaolume is multiplied by 0.785)
+			return '01400' #14 inches (1728 cubic inches is minimum for DR/DN...DN volume is multiplied by 0.785)
 		elsif validVolumeRequired.include?(rateInd)
 			minVol = 0.00
 			maxVol = 12.00  #9.00 got up to Tier4...but no tier 5.  Upping to 12.00
@@ -310,11 +310,10 @@ class ManifestGenerator
 			@permit = '151001'
 			@permitZIP = '20260'
 			@type = '3'
-		else
-			@mid = '990001337'
-			@permit = '33'
-			@permitZIP = '20260'
-			@type = '1'
+			
+			#@mid = '020202020'	#Prod PRS
+			#@permit = '12866001'#Prod PRS
+			#@permitZIP = '99999'#Prod PRS
 		end
 	end
 	#*********************************************************************************************************************************
@@ -405,14 +404,8 @@ class ManifestGenerator
 						baseline[stcKey] = stcVal if baseline.has_key?(stcKey)
 						ins = insCheck(stcVal)
 						baseline['Value of Article'] = ins if ins != false
+						baseline['COD Amount Due Sender'] = '0005000' if stcVal == '915' #If COD STC, fill COD Amount Due Sender to $50
 						baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
-					end
-					
-					volCheck = volumeCheck(rate['Rate Indicator'])
-					if volCheck != false
-						baseline['Length'] = volCheck
-						baseline['Width'] = volCheck
-						baseline['Height'] = volCheck
 					end
 					
 					#Catch any rates with Discount Type Codes
@@ -430,6 +423,13 @@ class ManifestGenerator
 					
 					baseline['Domestic Zone'] = '08' if rate['Rate Indicator'] == 'PM' #Catch Priority Mail 'PM' which requires ZIP starting in 963 = Zone 8.
 					baseline['Destination ZIP Code'] = '96303' if rate['Rate Indicator'] == 'PM' #Assign 93603.
+					
+					volCheck = volumeCheck(rate['Rate Indicator'])
+					if volCheck != false
+						baseline['Length'] = volCheck
+						baseline['Width'] = volCheck
+						baseline['Height'] = volCheck
+					end
 					
 					baseline.each_value do |value|
 						detail = detail + "#{value}|"
@@ -665,8 +665,8 @@ class ManifestGenerator
 					countryCode = '  ' if @domClasses.include?(d['Mail Class'])
 					countryCode = d['Destination Country Code'] if @intClasses.include?(d['Mail Class'])
 			
-					sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        #{Time.now.strftime('%m%d%Y')}#{@time}NNNNNNNNNN"
-					#sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.00000000#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        11302012#{@time}NNNNNNNNNN"
+					sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.0000000N#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        #{Time.now.strftime('%m%d%Y')}#{@time}NNNNNNNNNN"
+					#sampleLine = "    D#{pic}#{weight}#{length}#{height}#{width}#{girth}#{zip}YN#{shape}#{d['Processing Category']}NNNNNNNNNNNN0.0000000N#{d['Mail Class']}#{sortation}N     NA     NANNA#{' '.ljust(240, ' ')}#{countryCode}        01132013#{@time}NNNNNNNNNN"
 					lines << sampleLine
 					sampleCount = sampleCount + 1
 				end
@@ -675,7 +675,7 @@ class ManifestGenerator
 				numRecords = sampleCount.to_s.rjust(3, '0')
 				imdFile = File.open("#{@fileName}_IMD_#{dri}.evs", 'w')
 				imdHeader = ("eVS1H#{@facilityZIP}     #{facilityTypes[dri]}#{Time.now.strftime("%m%d%Y")}THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ')
-				#imdHeader = ("eVS1H#{@facilityZIP}     #{facilityTypes[dri]}11302012THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ') #Hard-coded date (12/2/2012) for pre-price change testing.
+				#imdHeader = ("eVS1H#{@facilityZIP}     #{facilityTypes[dri]}01132013THDSN0  N#{numRecords}#{@mid}3.0     NN030").ljust(112, ' ') #Hard-coded date for date-sensitive testing.
 				imdFile.write(imdHeader)
 				lines.each do |line|
 					imdFile.write("\n")
@@ -821,8 +821,8 @@ class ManifestGenerator
 		posSem.close()
 	end
 	#*********************************************************************************************************************************
-	#Builds out a STATS File
-	def buildSTATS()
+	#Builds out a STATS File Version 2
+	def buildSTATSv2()
 		details = pullDetails()
 		numRecords = details.size.to_s.rjust(4, ' ')
 		numRecords = '9999' if numRecords.to_i > 9999
@@ -869,6 +869,54 @@ class ManifestGenerator
 		puts "Built STATS sample (evs/sem) for #{@mailClass}!"
 	end
 	#*********************************************************************************************************************************
+	#Builds out a STATS File Version 1
+	def buildSTATS()
+		lines = []
+		details = pullDetails()
+		numRecords = details.size.to_s.rjust(4, ' ')
+		numRecords = '9999' if numRecords.to_i > 9999
+		#statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.DAT", 'w')
+		count = 0
+		mclass = ''
+		
+		details.each do |d| #d is each detail record in hash format
+			count = count + 1
+			pic = d['Tracking Number'].ljust(34, ' ')
+			pounds, ounces = statsWeight(d['Weight'])
+			ounces = ounces.rjust(4, ' ')
+			classInfo = statsClass(d['Mail Class'])
+			mclass = d['Mail Class']
+			shape = statsShape(d['Processing Category'], d['Rate Indicator'])
+			length = statsSize(d['Length']).rjust(3, '0')
+			height = statsSize(d['Height']).rjust(2, '0')
+			width = statsSize(d['Width']).rjust(2, '0')
+			
+			if @intClasses.include?(d['Mail Class'])
+				zip = '     '
+				countryType = '1' if d['Destination Country Code'] == 'CA'
+				countryType = '1' if d['Destination Country Code'] != 'CA'
+				countryCode = d['Destination Country Code']
+			else
+				zip = d['Destination ZIP Code']
+				countryType = '0'
+				countryCode = '  0'
+			end
+			
+			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}0#{@mid}#{zip}01THDSN0#{@date}000000   0"
+			lines << sampleLine
+			#statsFile.write("\n") if count > 1
+			#statsFile.write(sampleLine)
+		end
+		statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.DAT", 'w')
+		lines.each do |line|
+			statsFile.write("\n") if line != lines[0]
+			statsFile.write(line)
+		end
+		statsSem = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.sem", 'w')
+		statsSem.close()
+		puts "Built STATS sample (evs/sem) for #{@mailClass}!"
+	end
+	#**********************************************
 end
 
 test = ManifestGenerator.new()
