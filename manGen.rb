@@ -564,7 +564,7 @@ class ManifestGenerator
 		prompt
 		input = gets.downcase.chomp
 		if input == 's'
-			if @domClasses.include?(@mailClass) #Domestic
+			if @domClasses.include?(@mailClass) #Allows for selection of valid sample types for Domestic Mail Classes
 				puts "What type of sample file? 'i' for IMD, 'pass' for PASS, 'pos' for POS, or 's' for STATS."
 				prompt
 				sType = gets.downcase.chomp
@@ -577,14 +577,27 @@ class ManifestGenerator
 				when 'i' #IMD
 					buildIMD()
 				when 'pass' #PASS
-					#stuff
+					buildPASS()
 				when 'pos' #POS
-					#stuff
+					buildPOS()
 				when 's' #STATS
 					buildSTATS()
 				end
-			elsif @intClasses.include?(@mailClass)
-				buildIMD()
+			elsif @intClasses.include?(@mailClass) #Allows for selection of valid sample types for International Mail Classes
+				puts "What type of sample file? 'i' for IMD or 's' for STATS."
+				prompt
+				sType = gets.downcase.chomp
+				while not ['i', 'pass', 'pos', 's'].include?(sType)
+					puts "#{sType} is not a valid selection.  Please enter 'i' for IMD, 'pass' for PASS, 'pos' for POS, or 's' for STATS."
+					prompt
+					sType = gets.downcase.chomp
+				end
+				case sType #Sample Type
+				when 'i' #IMD
+					buildIMD()
+				when 's' #STATS
+					buildSTATS()
+				end
 			end
 		end
 	end
@@ -725,12 +738,9 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Re-format weight for STATS Files
 	def statsWeight(value)
-		puts "Starting Weight:  #{value}"
 		pounds = value[2, 3] #Pulls the 3rd (X), 4th (Y) and 5th (Z) digit from the format 00XYZdddd where 'd' is the decimal portion of the eVS weight convention
-		puts "Pounds:  #{pounds}"
 		ounces = ((('0.' + value[5, 4]).to_f)*16).round(1).to_s
 		ounces = ounces.to_f.round().to_s.rjust(3, ' ') if ounces.size > 3
-		puts "Ounces:  #{ounces}"
 		return pounds, ounces
 	end
 	#*********************************************************************************************************************************
@@ -828,17 +838,17 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Builds out a STATS File Version 2
 	def buildSTATSv2()
+		lines = []
 		details = pullDetails()
-		numRecords = details.size.to_s.rjust(4, ' ')
-		numRecords = '9999' if numRecords.to_i > 9999
-		statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.DAT", 'w')
 		count = 0
+		mclass = ''
 		
 		details.each do |d| #d is each detail record in hash format
 			count = count + 1
 			pic = d['Tracking Number'].ljust(34, ' ')
 			pounds, ounces = statsWeight(d['Weight'])
 			classInfo = statsClass(d['Mail Class'])
+			mclass = d['Mail Class']
 			shape = statsShape(d['Processing Category'], d['Rate Indicator'])
 			
 			case d['Processing Category']
@@ -866,21 +876,22 @@ class ManifestGenerator
 			end
 			
 			sampleLine = "661204THDSN0#{@date}RESC#{@time}99901#{count.to_s.rjust(4, '0')} 0                    1#{pounds}#{ounces}#{classInfo}00#{shape}#{mailable}00000#{@originZIP}#{zip}#{length}#{height}#{width}01000#{countryType}    0#{@date}0000002000#{countryCode}#{' '.rjust(20, ' ')}000  #{' '.rjust(13, ' ')}#{@date}01        #{pic}00         000000000000100001000000000000000000000000#{' '.rjust(144, ' ')}000000#{' '.rjust(66, ' ')}"
-			statsFile.write("\n") if count > 1
-			statsFile.write(sampleLine)
+			lines << sampleLine
 		end
-		statsSem = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.sem", 'w')
+		statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.DAT", 'w')
+		lines.each do |line|
+			statsFile.write("\n") if line != lines[0]
+			statsFile.write(line)
+		end
+		statsSem = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.sem", 'w')
 		statsSem.close()
-		puts "Built STATS sample (evs/sem) for #{@mailClass}!"
+		puts "Built STATS sample (.DAT/.sem) for #{@mailClass}!"
 	end
 	#*********************************************************************************************************************************
 	#Builds out a STATS File Version 1
 	def buildSTATS()
 		lines = []
 		details = pullDetails()
-		numRecords = details.size.to_s.rjust(4, ' ')
-		numRecords = '9999' if numRecords.to_i > 9999
-		#statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}.DAT", 'w')
 		count = 0
 		mclass = ''
 		
@@ -909,8 +920,6 @@ class ManifestGenerator
 			
 			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}0#{@mid}#{zip}01THDSN0#{@date}000000   0"
 			lines << sampleLine
-			#statsFile.write("\n") if count > 1
-			#statsFile.write(sampleLine)
 		end
 		statsFile = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.DAT", 'w')
 		lines.each do |line|
@@ -919,9 +928,91 @@ class ManifestGenerator
 		end
 		statsSem = File.open("C:\\manifestgenerator\\generated files\\STATS_#{@date}#{@time}#{mclass}.sem", 'w')
 		statsSem.close()
-		puts "Built STATS sample (evs/sem) for #{@mailClass}!"
+		puts "Built STATS sample (.DAT/.sem) for #{@mailClass}!"
 	end
 	#**********************************************
+	#Builds out a PASS Sample
+	def buildPASS()
+		lines = []
+		details = pullDetails()
+		count = 0
+		mclass = ''
+		
+		details.each do |d| #d is each detail record in hash format
+			count = count + 1
+			mclass = d['Mail Class']
+			pic = d['Tracking Number'].ljust(34, ' ')
+			weight = passWeight(d['Weight'])
+			length = passSize(d['Length'])
+			height = passSize(d['Height'])
+			width = passSize(d['Width'])
+			
+			if length.to_f > 0
+				cubic = 'Y'
+			else
+				cubic = 'N'
+			end
+			
+			sampleLine = "661204,0000,#{d['Destination Rate Indicator']},#{@facilityZIP},#{@date},#{@time},#{pic},#{d['Destination ZIP Code']},#{mclass},Y,#{d['Rate Indicator']},#{weight},Y,#{length},#{height},#{width},00000,#{cubic},THDSN0,N"
+			lines << sampleLine
+		end
+		passFile = File.open("C:\\manifestgenerator\\generated files\\TRP_P1EVS_OUT_#{@date}#{mclass}.pass", 'w')
+		lines.each do |line|
+			passFile.write("\n") if line != lines[0]
+			passFile.write(line)
+		end
+		passSem = File.open("C:\\manifestgenerator\\generated files\\TRP_P1EVS_OUT_#{@date}#{mclass}.sem", 'w')
+		passSem.close()
+		puts "Built PASS sample (.pass/.sem) for #{@mailClass}!"
+	end
+	#**********************************************
+	#Re-format weight for PASS Files
+	def passWeight(value)
+		wholeNum = value[1, 4] #Pulls the 2nd (A), 3rd (B), 4th (C) and 5th (D) digit from the format 0ABCDdddd where 'd' is the decimal portion of the eVS weight convention
+		decimal = value[5, 4]  #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}"
+	end
+	#*********************************************************************************************************************************
+	#Re-format dimensions for PASS Files
+	def passSize(value)
+		wholeNum = value[1,2] #Pulls the whole number portion from 00 to 99 of the eVS dimension/size convention
+		decimal = value[3, 2] #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}"
+	end
+	#*********************************************************************************************************************************
+	#Builds out a POS Sample
+	def buildPOS()
+		lines = []
+		details = pullDetails()
+		count = 0
+		mclass = ''
+		
+		details.each do |d| #d is each detail record in hash format
+			count = count + 1
+			mclass = d['Mail Class']
+			pic = d['Tracking Number'].ljust(34, ' ')
+			weight = posWeight(d['Weight'])
+			
+			sampleLine = "#{pic},#{@date},#{weight},#{d['Destination ZIP Code']},THDSN0"
+			lines << sampleLine
+		end
+		posFile = File.open("C:\\manifestgenerator\\generated files\\TRP_P1PRS_OUT_#{@date}#{mclass}.pos", 'w')
+		lines.each do |line|
+			posFile.write("\n") if line != lines[0]
+			posFile.write(line)
+		end
+		posSem = File.open("C:\\manifestgenerator\\generated files\\TRP_P1PRS_OUT_#{@date}#{mclass}.sem", 'w')
+		posSem.close()
+		puts "Built POS sample (.pos/.sem) for #{@mailClass}!"
+	end
+	#**********************************************
+	#Re-format weight for POS Files
+	def posWeight(value)
+		wholeNum = value[1, 4] #Pulls the 2nd (A), 3rd (B), 4th (C) and 5th (D) digit from the format 0ABCDdddd where 'd' is the decimal portion of the eVS weight convention
+		decimal = value[5, 4]  #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}"
+	end
+	#*********************************************************************************************************************************
 end
 
 test = ManifestGenerator.new()
