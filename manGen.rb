@@ -281,7 +281,7 @@ class ManifestGenerator
 			return '01400' #14 inches (1728 cubic inches is minimum for DR/DN...DN volume is multiplied by 0.785)
 		elsif validVolumeRequired.include?(rateInd)
 			minVol = 0.00
-			maxVol = 12.00  #9.00 got up to Tier4...but no tier 5.  Upping to 12.00
+			maxVol = 12.00  #9.50 will go to 0.49 (Tier 5).  Anything above will test recalculation to SP from CP.
 			part = rand(minVol..maxVol).round(2).to_s.split('.')
 			wholeNum = part[0].rjust(3, '0')
 			decimal = part[1].ljust(2, '0')
@@ -503,8 +503,8 @@ class ManifestGenerator
 			@recordCount = @recordCount + 1
 			details << detail
 			detail = ''
+			@rateCheck.check(baseline)
 		end
-		@rateCheck.check(baseline)
 		baseline.clear
 		baseline = @detailVals.dup
 		return details
