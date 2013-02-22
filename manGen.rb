@@ -3,12 +3,11 @@
 require_relative 'rateCheck'
 
 	#Set necessary variables to allow for OCRA Executable to function on ACE Machines ************************************************
-	pathString = ENV['OCRA_EXECUTABLE'].to_s
-	$targetPath = File.dirname(pathString)
+	$targetPath = File.dirname(ENV['OCRA_EXECUTABLE'].to_s)
+	Dir.chdir($targetPath)
 	if $targetPath != '.'
 		Dir.mkdir("#{$targetPath}\\Generated Files\\") if File.directory?("#{$targetPath}\\Generated Files\\") != true
 	end
-	#puts "OCRA Working Directory: #{File.expand_path File.dirname($0)}"
 	#*********************************************************************************************************************************
 	
 class ManifestGenerator
@@ -90,6 +89,8 @@ class ManifestGenerator
 	#Set Mail Class
 	def setClass()
 		puts "What mail class would you like to generate a file for?"
+		puts "	Options are: #{@mailClasses}"
+		puts "	(or type 'all' to build a manifest for each of the mail classes at once)"
 		prompt
 		@mailClass = gets.upcase.chomp
 		while @mailClasses.include?(@mailClass) == false and @mailClass != 'ALL'
@@ -572,6 +573,9 @@ class ManifestGenerator
 	#Determines whether a build includes all STC combinations, or only the base.
 	def trim()
 		puts "Enter 'r' to trim the build to only rate combinations, 'f' to trim to only fee combinations, or 'a' for all combinations."
+		puts "	'r' will iterate through all valid rates."
+		puts "	'f' will take the first valid rate, then iterate through all valid fee combinations using that rate."
+		puts "	'a' will iterate through all fee combinations for every valid rate."
 		prompt
 		@trim = gets.downcase.chomp
 		while @trim != 'r' and @trim != 'f' and @trim != 'a'
