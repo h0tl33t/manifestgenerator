@@ -1,0 +1,1 @@
+ocra --output ManifestGenerator.exe manGen.rb rateCheck.rb cew.cew mailclasses.txt rates.csv sortationLevels.csv baseline.raw detail.csv header.csv shapeIndicators.csv stcs.csv rateTables

@@ -1,0 +1,1 @@
+ocra --no-enc --output ValidateRates.exe validateRates.rb

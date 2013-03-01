@@ -397,6 +397,7 @@ class ManifestGenerator
 				baseline.each_value do |value|
 					detail = detail + "#{value}|"
 				end
+				@rateCheck.check(baseline)
 				@recordCount = @recordCount + 1
 				details << detail
 				detail = ''
@@ -423,6 +424,7 @@ class ManifestGenerator
 				baseline.each_value do |value|
 					detail = detail + "#{value}|"
 				end
+				@rateCheck.check(baseline)
 				@recordCount = @recordCount + 1
 				details << detail
 				detail = ''
@@ -462,12 +464,13 @@ class ManifestGenerator
 					baseline.each_value do |value|
 						detail = detail + "#{value}|"
 					end
+					
+					@rateCheck.check(baseline)
 					@recordCount = @recordCount + 1
 					details << detail
 					detail = ''
 				end
 			end
-			@rateCheck.check(baseline)
 			baseline.clear
 			baseline = @detailVals.dup
 		end
@@ -501,10 +504,11 @@ class ManifestGenerator
 			baseline.each_value do |value|
 				detail = detail + "#{value}|"
 			end
+			
+			@rateCheck.check(baseline)
 			@recordCount = @recordCount + 1
 			details << detail
 			detail = ''
-			@rateCheck.check(baseline)
 		end
 		baseline.clear
 		baseline = @detailVals.dup

@@ -1,0 +1,19 @@
+Mail Class,Processing Category,Destination Rate Indicator,Rate Indicator,Min Zone,Max Zone,Barcode,Discount and Surcharge,Min Weight,Max Weight
+BL,3,N,BA,00,00,0,*,0.001,70
+BL,3,N,BA,00,00,1,*,0.001,70
+BL,4,N,BA,00,00,0,*,0.001,70
+BL,4,N,BA,00,00,1,*,0.001,70
+BL,5,N,BA,00,00,0,*,0.001,70
+BL,5,N,BA,00,00,1,*,0.001,70
+BL,3,N,SP,00,00,0,*,0.001,70
+BL,3,N,SP,00,00,1,*,0.001,70
+BL,4,N,SP,00,00,0,*,0.001,70
+BL,4,N,SP,00,00,1,*,0.001,70
+BL,5,N,SP,00,00,0,*,0.001,70
+BL,5,N,SP,00,00,1,*,0.001,70
+BL,3,N,5D,00,00,0,*,0.001,70
+BL,3,N,5D,00,00,1,*,0.001,70
+BL,4,N,5D,00,00,0,*,0.001,70
+BL,4,N,5D,00,00,1,*,0.001,70
+BL,5,N,5D,00,00,0,*,0.001,70
+BL,5,N,5D,00,00,1,*,0.001,70
