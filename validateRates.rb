@@ -51,7 +51,6 @@ class RateValidate
 				rateCheckFiles = Dir.glob("#{@workPath}/*_rateCheck??.csv")
 				rateCheckFiles.each do |checkFile|
 					efns << (/\d{22}/.match(checkFile)).to_s #Pulls a 22-digit EFN from the filename then coverts the MatchData object to a string.
-					
 				end
 				
 				varianceFiles = Dir.glob("#{@workPath}/*_variance*")
