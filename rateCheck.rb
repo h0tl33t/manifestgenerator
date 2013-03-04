@@ -20,7 +20,7 @@ class RateCheck
 			put "Detail Record parameter is not the expected hash, it is a #{detailRecord.class.to_s}!"
 		else
 			file = File.open("#{$targetPath}/ref/TEMP_rateCheck#{detailRecord['Mail Class']}.csv",'a')
-			#file.write("Tracking Number, Base Rate, Plus Rate") if File.zero?("#{File.dirname(__FILE__)}/ref/TEMP.csv")
+			#file.write("Tracking Number, Base Rate, Plus Rate") if File.zero?("#{$targetPath}/ref/TEMP_rateCheck#{detailRecord['Mail Class']}.csv")
 			file.write("Tracking Number,PC,RI,DRI,Length,Height,Width,Weight,Zone,Base Rate,Plus Rate") if File.zero?("#{$targetPath}/ref/TEMP_rateCheck#{detailRecord['Mail Class']}.csv")
 			
 			case detailRecord["Mail Class"]
@@ -63,7 +63,6 @@ class RateCheck
 			when "PS"
 				baseRate = findRatePS(detailRecord)
 				plusRate = ''
-				puts "Base Rate: #{baseRate}"
 			when "S2"
 				baseRate = findRateSM(detailRecord)
 				plusRate = ''
@@ -399,17 +398,21 @@ class RateCheck
 		
 		if nonProfit
 			if detailRecord['Weight'].to_f <= 0.20625
-				rateTable = loadTable("SMNPUnder3Presorted.csv") if detailRecord['Processing Category'] == '3' #Presorted Marketing Parcels (SA)
-				rateTable = loadTable("SMNPUnder3Irregular.csv") if detailRecord['Processing Category'] == '4' #Irregular
+				#rateTable = loadTable("SMNPUnder3Presorted.csv") if detailRecord['Processing Category'] == '3' #Presorted Marketing Parcels (SA)
+				#rateTable = loadTable("SMNPUnder3Irregular.csv") if detailRecord['Processing Category'] == '4' #Irregular
+				rateTable = loadTable("SMNPUnder3Presorted.csv") if detailRecord['Processing Category'] == '3' or detailRecord['Mail Class'] == 'S2' #Machinable SA and all S2
+				rateTable = loadTable("SMNPUnder3Irregular.csv") if detailRecord['Processing Category'] == '4' and detailRecord['Mail Class'] == 'SA'#Irregular SA
 				rateTable.each do |rate|
 					return rate[detailRecord['Rate Indicator']] if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']
 				end
 			elsif detailRecord['Weight'].to_f > 0.20625
 				perPiece = 0.0
 				perOunce = 0.0
-				rateTable = loadTable("SMNPOver3Presorted.csv") if detailRecord['Processing Category'] == '3' and detailRecord['Mail Class'] == 'SA' #Presorted Marketing Parcels
-				rateTable = loadTable("SMNPOver3Mach.csv") if detailRecord['Processing Category'] == '3' and detailRecord['Mail Class'] == 'S2' #Machinable Standard Mail Parcels
-				rateTable = loadTable("SMNPOver3Irregular.csv") if detailRecord['Processing Category'] == '4' #Irregular
+				#rateTable = loadTable("SMNPOver3Presorted.csv") if detailRecord['Processing Category'] == '3' and detailRecord['Mail Class'] == 'SA' #Presorted Marketing Parcels
+				#rateTable = loadTable("SMNPOver3Mach.csv") if detailRecord['Processing Category'] == '3' and detailRecord['Mail Class'] == 'S2' #Machinable Standard Mail Parcels
+				#rateTable = loadTable("SMNPOver3Irregular.csv") if detailRecord['Processing Category'] == '4' #Irregular
+				rateTable = loadTable("SMNPOver3Presorted.csv") if detailRecord['Processing Category'] == '3' or detailRecord['Mail Class'] == 'S2' #Machinable SA and all S2
+				rateTable = loadTable("SMNPOver3Irregular.csv") if detailRecord['Processing Category'] == '4' and detailRecord['Mail Class'] == 'SA'#Irregular SA
 				rateTable.each do |rate|
 					perPiece = rate[detailRecord['Rate Indicator']].to_f if rate['Destination Rate Indicator'] == 'Per Piece'
 					perOunce = rate[detailRecord['Rate Indicator']].to_f if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']

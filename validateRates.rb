@@ -22,7 +22,8 @@ class RateValidate
 			@efn = eachEFN
 			File.delete("#{@workPath}/#{@efn}_validationResults.csv") if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
 			compare()
-			puts "Validation results generated and stored in #{@workPath}/#{@efn}_validationResults.csv!"
+			puts "Validation results generated and stored in #{@workPath}/#{@efn}_validationResults.csv!" if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
+			puts "Generation of #{@workPath}/#{@efn}_validationResults.csv failed.." if not File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
 		end
 		puts "Press any key to exit the program."
 		stop = gets.chomp
@@ -60,8 +61,10 @@ class RateValidate
 				
 				if bothFilesExist
 					puts "EFNs collected: #{efns}"
-					puts "Rate Check Files Detected: #{rateCheckFiles}"
-					puts "Variance Files Detected: #{varianceFiles}"
+					#puts "Rate Check Files Detected: #{rateCheckFiles}"
+					#rateCheckFiles.each {|file| puts "* #{file}"}
+					#puts "Variance Files Detected: #{varianceFiles}"
+					#varianceFiles.each {|file| puts "* #{file}"}
 				else
 					puts "Error encountered.  Verify the following:"
 					puts "1) Both the Rate Check and Variance files are in the correct location (#{@workPath}/)."
@@ -82,7 +85,7 @@ class RateValidate
 		
 		variance.each do |varRecord|
 			rateCheck.each do |checkRecord|
-				if varRecord['PIC'] == checkRecord['Tracking Number']
+				if varRecord['PIC'].delete("'") == checkRecord['Tracking Number'].delete("'")
 					matchedTier, matched = "Base Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2)
 					matchedTier, matched = "Plus Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
 					matchedTier, matched = "both Base and Plus Rates", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2) and varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
@@ -100,7 +103,8 @@ class RateValidate
 		
 		fileNames = Dir.glob("#{@workPath}/#{@efn}_rateCheck??.csv") if type == 'Rate Check' #Should only add 1 file name to the array fileName.
 		fileNames = Dir.glob("#{@workPath}/#{@efn}_variance*.csv") if type == 'Variance' #Dir.glob returns an array of all matching files..can be more than 1.
-		puts "Loading #{type} file(s): #{fileNames}"
+		puts "Loading #{type} file(s):"
+		fileNames.each_with_index {|file, i| puts "#{(i.to_i + 1)}) #{file}"}
 		
 		fileNames.each do |eachFile|
 			file = File.open(eachFile,'r')
