@@ -15,8 +15,8 @@ class SBPGenerator
 		puts "Starting SBP file generation.."
 		
 		@mid = '900000616' #Temporarily hard coded for simplicity.  If necessary, can use setMID() to add in the user prompt for a MID.
-		#@mid = '010101010' #Prod MID
-		@mailClasses = []
+		@mailClasses = ['BB','BL','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA']
+		@allDetails = []
 		@domClasses = []
 		@intClasses = []
 		@headerFields = []
@@ -26,57 +26,70 @@ class SBPGenerator
 		@detailRecords = []
 		@mailClass = ''
 		@baselineFile = "#{File.dirname(__FILE__)}\\baseline.raw"
-		#@stcs = "#{File.dirname(__FILE__)}\\stcs.csv"
 		@stcs = "#{File.dirname(__FILE__)}/sbp_stcs.csv"
-		@rateFile = "#{File.dirname(__FILE__)}\\rates.csv"  #To test current valid rate ingredients
-		#@rateFile = "#{File.dirname(__FILE__)}\\oldrates.csv"  #To negative test invalid/removed rate ingredients...if activating, also activate @domClasses with BP
+		@rateFile = "#{File.dirname(__FILE__)}\\rates.csv"
+		@events = "#{File.dirname(__FILE__)}\\sbp_event_codes.csv"
 		@fileName = ''
 		@rateIngredients = []
-		#@sbpSTCList = []
 		@stcList = []
 		@stc = ''
 		@firstServiceCode = ''
 		@secondServiceCode = ''
+		@eventCode
+		@eventList = []
 		@originZIP = '20260'  #Temporarily hard coded for simplicity.
 		@facilityZIP = '20260'#Temporarily hard coded for simplicity.
 		@recordCount = 0
 		@time = Time.now.strftime('%H%M%S')
 		@date = Time.now.strftime('%Y%m%d')
 		#@date = '20130113' #Temp test date.
-		@permit = '33'		#Temporarily hard coded for simplicity.
-		@permitZIP = '20260'#Temporarily hard coded for simplicity.
-		#@permit = '123'		#Prod Permit
-		#@permitZIP = '99999'#Prod Permit ZIP
+		@permit = ''
+		@permitZIP = ''
 		@type = '1'
 		@isDomestic = false
-		@trim = ''
-		@eligible = true #Eligible for manifest-based? PRS Full Network are not.
-		@isReturns = false
+		@eligible = true   #Eligible for manifest-based? PRS Full Network are not.
+		@isReturns = false #Returns product?  Used to set type to '3' and permit/permit ZIP to MR-type permit.
 		
 		@nsa = false
 		
 		@rateCheck = RateCheck.new()
 		
+		pullClasses("#{File.dirname(__FILE__)}\\mailclasses.txt")
 		pullSTCs()
 		selectSTC()
-		puts "Eligible? #{@eligible}"
 		@isManifestBased = false if not @eligible
 		@isManifestBased = checkMailerType() if @eligible
 		generateManifest() if @isManifestBased
 		generateSBP()
-
-		
-		#pullClasses("#{File.dirname(__FILE__)}\\mailclasses.txt")
-		#pullHeaderFields("#{File.dirname(__FILE__)}\\header.csv")
-		#pullDetailFields("#{File.dirname(__FILE__)}\\detail.csv")
-		#baseline()
-		#setClass()
-		#fileGen() if @mailClass != 'ALL'
-		#buildAll() if @mailClass == 'ALL'
+		exit()
 	end
 	#*********************************************************************************************************************************
 	def prompt()
 		print "> "
+	end
+	#*********************************************************************************************************************************
+	def exit()
+		puts "Press any key to exit the program."
+		prompt()
+		gets()
+	end
+	#*********************************************************************************************************************************
+	#Pull Mail Classes
+	def pullClasses(filename)
+		classList = File.open(filename)
+		@mailClasses = classList.gets.split(',')
+		classList.close()
+		
+		@domClasses = @mailClasses.dup
+		@domClasses.keep_if do |mail|
+			['BB','BL','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail)
+			#['BB','BL','BP','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail) #Has invalid/removed mail classes for negative testing.
+		end
+		
+		@intClasses = @mailClasses.dup
+		@intClasses.keep_if do |mail|
+			['IE', 'LC', 'PG', 'CP'].include?(mail)
+		end
 	end
 	#*********************************************************************************************************************************
 	def pullSTCs()
@@ -108,25 +121,26 @@ class SBPGenerator
 		prompt
 		selection = gets.chomp
 		while not validSTCs.keys.include?(selection)
-			puts "#{selection} is not a valid STC, please enter a valid value 3-digit STC code):"
+			puts "#{selection} is not a valid STC, please enter a valid 3-digit STC code:"
 			prompt
 			selection = gets.chomp
 		end
 		
 		@stcList.each {|stc| @stc, @mailClass, @firstServiceCode, @secondServiceCode = stc['Service Type Code'], stc['Mail Class'], stc['Extra Service Code 1st Service'], stc['Extra Service Code 2nd Service'] if stc['Service Type Code'] == selection}
 		puts "You selected: #{validSTCs[selection]}"
+		@isDomestic = true if @domClasses.include?(@mailClass)
 		@eligible = false if /PRS Full Network/.match(validSTCs[selection]) != nil
-		@returns = true if 
+		@isReturns = true if /Return/.match(validSTCs[selection]) != nil
 	end
 	#*********************************************************************************************************************************
-	#File Generator
+	#Manifest Generator
 	def generateManifest()
 		puts "Generating a manifest for a manifest-based SBP mailer!"
-		pullHeaderFields()
-		pullDetailFields()
+		pullHeaderFields("#{File.dirname(__FILE__)}\\header.csv")
+		pullDetailFields("#{File.dirname(__FILE__)}\\detail.csv")
 		baseline()
 		setFileType()
-		filenameGen()
+		fileNameGen('manifest')
 		pullRates()
 		details = detailGen()	
 		if details.empty? == false
@@ -139,10 +153,33 @@ class SBPGenerator
 			file.close()
 			buildCEW()
 			buildSEM()
-			puts "Built raw/cew/sem for mail class #{@mailClass}!"
+			puts "Built raw/cew/sem for STC #{@stc} (Mail Class: #{@mailClass})!"
 		end
 		details.clear
-		sampleGen()
+	end
+	#*********************************************************************************************************************************
+	#SBP File Generator
+	def generateSBP()
+		line = []
+		first = true
+		puts "Generating SBP files.."
+		pickScanEvent()
+		fileNameGen('sbp')
+		sbpFile = File.open("#{@fileName}.dat", 'w')
+		details = sbpDetailGen()
+		details.each do |line|
+			if first
+				sbpFile.write(line)
+				first = false
+			else
+				sbpFile.write("\n")
+				sbpFile.write(line)
+			end
+		end
+		sbpFile.close()
+		buildSEM()
+		puts "Built .dat/.sem for STC #{@stc} and Event Code #{@eventCode}!"
+		#sampleGen()
 	end
 	#*********************************************************************************************************************************
 	def checkMailerType()
@@ -163,6 +200,41 @@ class SBPGenerator
 			@permit = '911'
 		end
 		@nsa = true
+	end
+	#*********************************************************************************************************************************
+	def pickScanEvent()
+		validCodes = []
+		pullEvents()
+		puts "What SBP Scan Event Code do you want to utilize in the SBP File? (Enter a 2-digit code from the list below)"
+		@eventList.each do |event|
+			puts "#{event.values[0]} - #{event.values[1]}"
+			validCodes << event.values[0]
+		end
+		prompt
+		code = gets.chomp
+		while not validCodes.include?(code)
+			puts "'#{code}' is not a valid SBP Scan Event Code.  Re-enter a valid code:"
+			prompt
+			code = gets.chomp
+		end
+		@eventCode = code
+	end
+	#*********************************************************************************************************************************
+	def pullEvents()
+		eachEvent = {}
+		eventFile = File.open(@events, 'r')
+		fieldNames = eventFile.readline.chomp.split(',')
+		eventFile.each_line do |row|
+			event = row.chomp.split(',')
+			fieldNames.each_with_index do |field, index|
+				eachEvent.merge!(field => event[index]) if event[index] != nil
+				eachEvent.merge!(field => '') if event[index] == nil
+			end
+
+			@eventList << eachEvent.dup if eachEvent.empty? == false
+			eachEvent.clear
+		end
+		eventFile.close()
 	end
 	#*********************************************************************************************************************************
 	def setMID()
@@ -251,21 +323,20 @@ class SBPGenerator
 	#*********************************************************************************************************************************
 	#PIC Generator -- take (MID, STC)
 	def picGen(stc)
-		#if @isDomestic
-		#	return "420#{@originZIP}000092#{stc}#{@mid}#{rand(99999999).to_s.rjust(8, '0')}"
-		#else
-		#	case @mailClass
-		#	when 'LC'
-		#		return "LX600#{rand(999999).to_s.rjust(6, '0')}US"
-		#	when 'PG'
-		#		return "83500#{rand(99999).to_s.rjust(5, '0')}"
-		#	when 'IE'
-		#		return "AA100#{rand(999999).to_s.rjust(6, '0')}US"
-		#	when 'CP'
-		#		return "CB600#{rand(999999).to_s.rjust(6, '0')}US"
-		#	end
-		#end
-		return "420#{@originZIP}000092#{stc}#{@mid}#{rand(99999999).to_s.rjust(8, '0')}"
+		if @isDomestic
+			return "420#{@originZIP}000092#{stc}#{@mid}#{rand(99999999).to_s.rjust(8, '0')}"
+		else
+			case @mailClass
+			when 'LC'
+				return "LX600#{rand(999999).to_s.rjust(6, '0')}US"
+			when 'PG'
+				return "83500#{rand(99999).to_s.rjust(5, '0')}"
+			when 'IE'
+				return "AA100#{rand(999999).to_s.rjust(6, '0')}US"
+			when 'CP'
+				return "CB600#{rand(999999).to_s.rjust(6, '0')}US"
+			end
+		end
 	end
 	#*********************************************************************************************************************************
 	#Zone Calc -- take (minZone, maxZone)
@@ -330,13 +401,14 @@ class SBPGenerator
 	end
 	#*********************************************************************************************************************************
 	#Filename Generator
-	def filenameGen()
-		@fileName = "#{$targetPath}\\Generated Files\\autogenerated_#{@mailClass}_#{@date}_SBP"
+	def fileNameGen(type)
+		@fileName = "#{$targetPath}\\SBP Files\\autogenerated_#{@date}_#{@stc}_SBP" if type == 'manifest'
+		@fileName = "#{$targetPath}\\SBP Files\\PTS-SBP-Extract-#{@date}_#{@stc}_#{@eventCode}" if type == 'sbp'
 	end
 	#*********************************************************************************************************************************
 	#Set File Type - set type based on the mail class.  Necessary to appropriately handle return-type products (MR and RP).
 	def setFileType()
-		if @mailClass == 'RP' or @mailClass == 'MR'
+		if @isReturns
 			@permit = '8203001'
 			@permitZIP = '20024'
 			@type = '3'
@@ -369,7 +441,7 @@ class SBPGenerator
 	#*********************************************************************************************************************************
 	#Detail Generator
 	def detailGen()
-		isNSA() if @nsa == false #Checks to see if user wants to utilize NSA mailer information or not.  Only runs once according to @nsa.
+		#isNSA() if @nsa == false #Checks to see if user wants to utilize NSA mailer information or not.  Only runs once according to @nsa.
 		
 		@detailVals['Mail Class'] = @mailClass
 		@detailVals['Mail Owner Mailer ID'] = @mid
@@ -383,7 +455,6 @@ class SBPGenerator
 	#Build Domestic Detail Records
 	def buildDom()
 		pullRates()
-		pullSTCs()
 		baseline = @detailVals.dup
 		detail = ''
 		details = []
@@ -393,90 +464,54 @@ class SBPGenerator
 				baseline[key] = val if baseline.has_key?(key)
 			end
 			
-			if @mailClass == 'MR' #Catches MR which has no STC combinations..
-				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
-				baseline['Service Type Code'] = '???' #Need to figure out what the STC is for this...not in STC reference spreadsheet.
-				baseline.each_value do |value|
-					detail = detail + "#{value}|"
-				end
-				@rateCheck.check(baseline)
-				@recordCount = @recordCount + 1
-				details << detail
-				detail = ''
-			elsif rate['Processing Category'] == 'O' #Catch Open & Distribute
-				#nsaOnly = ['O5', 'O6', 'O7'] #For potential future use.
-				#next if ['O5', 'O6', 'O7'].include?(rate['Rate Indicator']) #Catch NSA Only O&D Rates and temporarily skip over these rates
-				baseline['Open and Distribute Contents Indicator'] = 'EP' #Required field for O&D, EP = Parcels/Electronic Payment
-				baseline['Destination Facility Type'] = rate['Destination Rate Indicator']
-				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
-				if @mailClass == 'PM'
-					pmod1 = '123' #Priority Mail Open & Distribute STC Value
-					pmod2 = '430' #Priority Mail Open & Distribute 1st Service Code
-					baseline['Service Type Code'] = pmod1
-					baseline['Extra Service Code 1st Service'] = pmod2
-					baseline['Tracking Number'] = picGen(pmod1)
-				elsif @mailClass == 'EX'
-					exod = '723' #Express Mail Open & Distribute STC Value
-					baseline['Service Type Code'] = exod
-					baseline['Tracking Number'] = picGen(exod)
-					baseline['Delivery Option Indicator'] = 'E' #Required for EXOD
-				end
-				baseline.each_value do |value|
-					detail = detail + "#{value}|"
-				end
-				@rateCheck.check(baseline)
-				@recordCount = @recordCount + 1
-				details << detail
-				detail = ''
+			if rate['Processing Category'] == 'O' #Catch Open & Distribute
+				next
 			else
-				@stcList.each do |stc|
-					stc.each do |stcKey, stcVal|
-						baseline[stcKey] = stcVal if baseline.has_key?(stcKey)
-						ins = insCheck(stcVal)
-						baseline['Value of Article'] = ins if ins != false
-						baseline['COD Amount Due Sender'] = '0005000' if stcVal == '915' #If COD STC, fill COD Amount Due Sender to $50
-						baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
-					end
-					
-					#Catch any rates with Discount Type Codes
-					baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*'
-					
-					#Catch Non-Profit SA and S2 Rate Ingredients (for both published and NSA)
-					if (@mailClass == 'S2' or @mailClass == 'SA') and ['N5', 'ND', 'NM', 'NT', 'NR', 'NH', 'NB'].include?(rate['Rate Indicator'])
-						baseline['Payment Account Number'] = '333' if @mid == '990001337'
-						baseline['Payment Account Number'] = '9911' if @mid == '911911911'
-					end
-
-					baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-					baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-					baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
-					
-					baseline['Domestic Zone'] = '08' if rate['Rate Indicator'] == 'PM' #Catch Priority Mail 'PM' which requires ZIP starting in 963 = Zone 8.
-					baseline['Destination ZIP Code'] = '96303' if rate['Rate Indicator'] == 'PM' #Assign 93603.
-					
-					volCheck = volumeCheck(rate['Rate Indicator'])
-					if volCheck != false
-						baseline['Length'] = volCheck
-						baseline['Width'] = volCheck
-						baseline['Height'] = volCheck
-					end
-					
-					baseline.each_value do |value|
-						detail = detail + "#{value}|"
-					end
-					
-					@rateCheck.check(baseline)
-					@recordCount = @recordCount + 1
-					details << detail
-					detail = ''
+				baseline['Service Type Code'] = @stc
+				baseline['Extra Service Code 1st Service'] = @firstServiceCode
+				baseline['Extra Service Code 2nd Service'] = @secondServiceCode
+				baseline['Tracking Number'] = picGen(@stc)
+				[@stc, @firstServiceCode, @secondServiceCode].each do |code|
+					ins = insCheck(code)
+					baseline['Value of Article'] = ins if ins != false
+					baseline['COD Amount Due Sender'] = '0005000' if @stc == '915' #If COD STC, fill COD Amount Due Sender to $50
 				end
+					
+				#Catch any rates with Discount Type Codes
+				baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*'
+					
+				#Catch Non-Profit SA and S2 Rate Ingredients (for both published and NSA)
+				if (@mailClass == 'S2' or @mailClass == 'SA') and ['N5', 'ND', 'NM', 'NT', 'NR', 'NH', 'NB'].include?(rate['Rate Indicator'])
+					baseline['Payment Account Number'] = '333' if @mid == '990001337'
+					baseline['Payment Account Number'] = '9911' if @mid == '911911911'
+				end
+
+				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
+				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
+				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
+					
+				baseline['Domestic Zone'] = '08' if rate['Rate Indicator'] == 'PM' #Catch Priority Mail 'PM' which requires ZIP starting in 963 = Zone 8.
+				baseline['Destination ZIP Code'] = '96303' if rate['Rate Indicator'] == 'PM' #Assign 93603.
+					
+				volCheck = volumeCheck(rate['Rate Indicator'])
+				if volCheck != false
+					baseline['Length'] = volCheck
+					baseline['Width'] = volCheck
+					baseline['Height'] = volCheck
+				end
+					
+				baseline.each_value do |value|
+					detail = detail + "#{value}|"
+				end
+					
+				@rateCheck.check(baseline)
+				@recordCount = @recordCount + 1
+				details << detail
+				detail = ''
+				@allDetails << baseline.dup
+				baseline.clear
+				baseline = @detailVals.dup
 			end
-			baseline.clear
-			baseline = @detailVals.dup
 		end
 		return details
 	end
@@ -514,9 +549,79 @@ class SBPGenerator
 			details << detail
 			detail = ''
 		end
+		@allDetails << baseline.dup
 		baseline.clear
 		baseline = @detailVals.dup
 		return details
+	end
+	#*********************************************************************************************************************************
+	#SBP Detail Record Generator
+	def sbpDetailGen()
+		lineContents = []
+		detail = ''
+		details = []
+		
+		if @isManifestBased
+			@allDetails.each do |detailRecord|
+				lineContents << "010"
+				lineContents << Time.now.strftime('%m/%d/%Y')
+				lineContents << Time.now.strftime('%H.%M.%S')
+				lineContents << detailRecord['Tracking Number']
+				lineContents << @eventCode
+				lineContents << @facilityZIP
+				lineContents << ''.rjust(4,' ') #4-char white space
+				lineContents << detailRecord['Destination ZIP Code']
+				lineContents << ''.rjust(4,' ') #4-char white space
+				lineContents << ''.rjust(9,' ') #9-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(34,' ')#34-char white space
+				details << formatLine(lineContents)
+				lineContents.clear
+			end
+		else
+			puts "How many records do you want to generate?"
+			prompt
+			number = gets.chomp
+			while number.to_i <= 0
+				puts "#{number} is not a valid number.  Please enter a positive integer value."
+				prompt
+				number = gets.chomp
+			end
+			
+			number.to_i.times do 
+				lineContents << "010"
+				lineContents << Time.now.strftime('%m/%d/%Y')
+				lineContents << Time.now.strftime('%H.%M.%S')
+				lineContents << picGen(@stc)
+				lineContents << @eventCode
+				lineContents << @facilityZIP
+				lineContents << ''.rjust(4,' ') #4-char white space
+				lineContents << validZIP(zoneCalc('00', '08'))
+				lineContents << ''.rjust(4,' ') #4-char white space
+				lineContents << ''.rjust(9,' ') #9-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(7,' ') #7-char white space
+				lineContents << ''.rjust(34,' ')#34-char white space
+				details << formatLine(lineContents)
+				lineContents.clear
+			end
+		end
+		return details
+	end
+	#*********************************************************************************************************************************
+	#Format SBP File Detail Record
+	def formatLine(contents)
+		first = true
+		detail = ''
+		contents.each do |val|
+			detail = detail + "\"" + val + "\"" if first
+			detail = detail + "," + "\"" + val + "\"" if not first
+			first = false
+		end
+		return detail
 	end
 	#*********************************************************************************************************************************
 	#Build CEW File
@@ -535,62 +640,6 @@ class SBPGenerator
 	def buildSEM()
 		semFile = File.open("#{@fileName}.sem", 'w')
 		semFile.close()
-	end
-	#*********************************************************************************************************************************
-	#File Generator
-	def fileGen()
-		trim()
-		setFileType()
-		filenameGen()
-		details = detailGen()	
-		if details.empty? == false
-			file = File.open("#{@fileName}.raw", 'w')
-			file.write(headerGen())
-			details.each do |line|
-				file.write("\n")
-				file.write(line)
-			end
-			file.close()
-			buildCEW()
-			buildSEM()
-			puts "Built raw/cew/sem for mail class #{@mailClass}!"
-		end
-		details.clear
-		sampleGen()
-	end
-	#*********************************************************************************************************************************
-	#Handler for Mail Class 'ALL' to build all possible files
-	def buildAll()
-		#trim() Moved to fileGen (will give trim options for each single build)
-		fileCount = 0
-		totalCount = 0
-		@mailClasses.each do |mailClass|
-			@mailClass = mailClass
-			@isDomestic = true if @domClasses.include?(@mailClass)
-			@isDomestic = false if @intClasses.include?(@mailClass)
-			fileGen()
-			@rateIngredients.clear
-			@stcList.clear
-			fileCount = fileCount + 1
-			totalCount = totalCount + @recordCount
-			@recordCount = 0
-		end
-		puts "Finished building #{fileCount} files for a total of #{totalCount} unique detail records."
-	end
-	#*********************************************************************************************************************************
-	#Determines whether a build includes all STC combinations, or only the base.
-	def trim()
-		puts "Enter 'r' to trim the build to only rate combinations, 'f' to trim to only fee combinations, or 'a' for all combinations."
-		puts "	'r' will iterate through all valid rates."
-		puts "	'f' will take the first valid rate, then iterate through all valid fee combinations using that rate."
-		puts "	'a' will iterate through all fee combinations for every valid rate."
-		prompt
-		@trim = gets.downcase.chomp
-		while @trim != 'r' and @trim != 'f' and @trim != 'a'
-			puts "#{@trim} is not a valid response, please select either 'r', 'f', or 'a'."
-			prompt
-			@trim = gets.downcase.chomp
-		end
 	end
 	#*********************************************************************************************************************************
 	#Handler for Sample Building
@@ -638,13 +687,13 @@ class SBPGenerator
 	end
 	#*********************************************************************************************************************************
 	#Pulls the detail records for sample usage.
-	def pullDetails()
+	def pullDetails() #NEEDS HEAVY MODIFICATION***************
 		detail = {}
 		allDetails = []
 		count = 0
-		file = File.open("#{@fileName}.raw", 'r')
+		file = File.open("#{@fileName}.dat", 'r') #Pull SBP File
 		file.each_line do |line|
-			array = line.chomp.split('|')
+			array = line.chomp.split(',')
 			if count > 0
 				@detailFields.each_with_index do |field, i|
 					detail.merge!(field => array[i]) if array[i] != nil
