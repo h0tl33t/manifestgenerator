@@ -12,7 +12,7 @@ require_relative 'rateCheck'
 	
 class ManifestGenerator
 	def initialize()
-		puts "Welcome to the eVS Manifest Generator!"
+		puts "Starting eVS file generation.."
 		
 		@mid = '990001337' #Temporarily hard coded for simplicity.  If necessary, can use setMID() to add in the user prompt for a MID.
 		#@mid = '010101010' #Prod MID
@@ -57,10 +57,17 @@ class ManifestGenerator
 		setClass()
 		fileGen() if @mailClass != 'ALL'
 		buildAll() if @mailClass == 'ALL'
+		exit()
 	end
 	#*********************************************************************************************************************************
 	def prompt()
 		print "> "
+	end
+	#*********************************************************************************************************************************
+	def exit()
+		puts "Press any key to exit the program."
+		prompt()
+		gets()
 	end
 	#*********************************************************************************************************************************
 	def isNSA()
@@ -111,8 +118,8 @@ class ManifestGenerator
 		
 		@domClasses = @mailClasses.dup
 		@domClasses.keep_if do |mail|
-			['BB','BL','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail)
-			#['BB','BL','BP','BS','CM','EX','FC','LW','MR','PM','PS','RP','S2','SA'].include?(mail) #Has invalid/removed mail classes for negative testing.
+			['BB','BL','BS','CM','EX','FC','LW','PM','PS','RP','S2','SA'].include?(mail)
+			#['BB','BL','BP','BS','CM','EX','FC','LW','PM','PS','RP','S2','SA'].include?(mail) #Has invalid/removed mail classes for negative testing.
 		end
 		
 		@intClasses = @mailClasses.dup
@@ -326,7 +333,7 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Set File Type - set type based on the mail class.  Necessary to appropriately handle return-type products (MR and RP).
 	def setFileType()
-		if @mailClass == 'RP' or @mailClass == 'MR'
+		if @mailClass == 'RP'
 			@mid = '900484337'
 			@permit = '151001'
 			@permitZIP = '20260'
@@ -389,19 +396,7 @@ class ManifestGenerator
 				baseline[key] = val if baseline.has_key?(key)
 			end
 			
-			if @mailClass == 'MR' #Catches MR which has no STC combinations..
-				baseline['Domestic Zone'] = zoneCalc(rate['Min Zone'], rate['Max Zone'])
-				baseline['Destination ZIP Code'] = validZIP(baseline['Domestic Zone'])
-				baseline['Weight'] = validWeight(rate['Min Weight'], rate['Max Weight'])
-				baseline['Service Type Code'] = '???' #Need to figure out what the STC is for this...not in STC reference spreadsheet.
-				baseline.each_value do |value|
-					detail = detail + "#{value}|"
-				end
-				@rateCheck.check(baseline)
-				@recordCount = @recordCount + 1
-				details << detail
-				detail = ''
-			elsif rate['Processing Category'] == 'O' #Catch Open & Distribute
+			if rate['Processing Category'] == 'O' #Catch Open & Distribute
 				#nsaOnly = ['O5', 'O6', 'O7'] #For potential future use.
 				#next if ['O5', 'O6', 'O7'].include?(rate['Rate Indicator']) #Catch NSA Only O&D Rates and temporarily skip over these rates
 				baseline['Open and Distribute Contents Indicator'] = 'EP' #Required field for O&D, EP = Parcels/Electronic Payment
@@ -1012,6 +1007,7 @@ class ManifestGenerator
 			posFile.write("\n") if line != lines[0]
 			posFile.write(line)
 		end
+		posFile.close()
 		posSem = File.open("#{$targetPath}\\Generated Files\\TRP_P1PRS_OUT_#{@date}#{mclass}.sem", 'w')
 		posSem.close()
 		puts "Built POS sample (.pos/.sem) for #{@mailClass}!"

@@ -15,7 +15,7 @@
 class RateValidate
 	#*********************************************************************************************************************************
 	def initialize()
-		puts "Welcome to the EVS Rate Validator!"
+		puts "Starting EVS rate validation.."
 		@workPath = "#{File.expand_path($targetPath)}/ref"
 		@month = getMonth(Time.now.month)
 		@year = Time.now.year.to_s

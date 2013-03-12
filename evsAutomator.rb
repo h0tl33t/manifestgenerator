@@ -1,12 +1,13 @@
-#The EVS Automator is the master ruby file which contains and executes the following EVS Automation Components:
-#1) EVS Manifest Generator
+#The EVS/SBP Automator is the master ruby file which contains and executes the following EVS Automation Components:
+#1) EVS File Generator
 #2) EVS Rate Check
 #3) EVS Rate Validator
 #4) EVS Command Generator
+#5) SBP File Generator
 
-$:.unshift File.dirname($0) #Necessary for OCRA (ruby .exe packager) to load additional files from the same directory as the EVS Automator
+$:.unshift File.dirname($0) #Necessary for OCRA (ruby .exe packager) to load additional files from the same directory as the EVS/SBP Automator
 
-@operations = { '1' => 'Generate EVS Files', '2' => 'Validate Rates', '3' => 'Generate the shell command to copy EVS files to target directory' }
+@operations = { '1' => 'Generate EVS Files', '2' => 'Generate SBP Files', '3' => 'Validate Rates', '4' => 'Generate Shell Command' }
 @input = ''
 @stillWorking = true
 
@@ -24,7 +25,7 @@ def prompt()
 	end
 end
 
-puts "Welcome to the EVS Automator!"
+puts "Welcome to the EVS/SBP Automator!"
 prompt()
 while @stillWorking
 	case @input
@@ -33,9 +34,12 @@ while @stillWorking
 		load "manGen.rb"
 	when '2'
 		puts "Selected 2 - #{@operations['2']}!"
-		load "validateRates.rb"
+		load "sbpGenerator.rb"
 	when '3'
 		puts "Selected 3 - #{@operations['3']}!"
+		load "validateRates.rb"
+	when '4'
+		puts "Selected 4 - #{@operations['4']}!"
 		load "commandGenerator.rb"
 	end
 
@@ -43,7 +47,7 @@ while @stillWorking
 	if gets.chomp.downcase == 'y'
 		prompt()
 	else
-		puts "Exiting the EVS Automator!"
+		puts "Exiting the EVS/SBP Automator!"
 		@stillWorking = false
 	end
 end

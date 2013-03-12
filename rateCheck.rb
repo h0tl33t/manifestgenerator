@@ -63,6 +63,9 @@ class RateCheck
 			when "PS"
 				baseRate = findRatePS(detailRecord)
 				plusRate = ''
+			when "RP"
+				baseRate = findRateRP(detailRecord)
+				plusRate = ''
 			when "S2"
 				baseRate = findRateSM(detailRecord)
 				plusRate = ''
@@ -390,6 +393,14 @@ class RateCheck
 				return rate[detailRecord['Domestic Zone']]
 			end
 		end
+	end
+	#*********************************************************************************************************************************
+	def findRateRP(detailRecord)
+		#detailRecord['Domestic Zone'] = '00' if ['01','02'].include?(detailRecord['Domestic Zone'])
+		#detailRecord['Weight'] = formatPounds(detailRecord['Weight']) if rateTier == 'base'
+		
+		#No published rate table for RP.
+		return ''
 	end
 	#*********************************************************************************************************************************
 	def findRateSM(detailRecord)
