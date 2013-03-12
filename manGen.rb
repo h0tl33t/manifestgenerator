@@ -544,7 +544,7 @@ class ManifestGenerator
 			file.close()
 			buildCEW()
 			buildSEM()
-			puts "Built raw/cew/sem for mail class #{@mailClass}!"
+			puts "Built manifest (.raw/.cew/.sem) for mail class #{@mailClass}!"
 		end
 		details.clear
 		sampleGen()
@@ -730,7 +730,7 @@ class ManifestGenerator
 				imdSem.close()
 				lines.clear()
 				sampleCount = 0
-				puts "Built IMD sample (evs/sem) for #{@mailClass} and Facility Type #{dri}!"
+				puts "Built IMD sample (.evs/.sem) for #{@mailClass} and Facility Type #{dri}!"
 			end
 		end
 	end

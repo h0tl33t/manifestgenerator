@@ -50,6 +50,8 @@ class SBPGenerator
 		@isDomestic = false
 		@eligible = true   #Eligible for manifest-based? PRS Full Network are not.
 		@isReturns = false #Returns product?  Used to set type to '3' and permit/permit ZIP to MR-type permit.
+		@cmFlats = false
+		@cmLetters = false
 		
 		@nsa = false
 		
@@ -127,13 +129,13 @@ class SBPGenerator
 			selection = gets.chomp
 		end
 		
-		#Catch Critical Mail STCs and process accordingly.
-		
 		@stcList.each {|stc| @stc, @mailClass, @firstServiceCode, @secondServiceCode = stc['Service Type Code'], stc['Mail Class'], stc['Extra Service Code 1st Service'], stc['Extra Service Code 2nd Service'] if stc['Service Type Code'] == selection}
 		puts "You selected: #{validSTCs[selection]}"
 		@isDomestic = true if @domClasses.include?(@mailClass)
 		@eligible = false if /PRS Full Network/.match(validSTCs[selection]) != nil
 		@isReturns = true if /Return/.match(validSTCs[selection]) != nil
+		@cmFlats = true if ['741','799'].include?(selection)   #Catch Critical Mail Flats
+		@cmLetters = true if ['740','816'].include?(selection) #Catch Critical Mail Letters
 	end
 	#*********************************************************************************************************************************
 	#Manifest Generator
@@ -156,7 +158,7 @@ class SBPGenerator
 			file.close()
 			buildCEW()
 			buildSEM()
-			puts "Built raw/cew/sem for STC #{@stc} (Mail Class: #{@mailClass})!"
+			puts "Built manifest (.raw/.cew/.sem) for STC #{@stc} (Mail Class: #{@mailClass})!"
 		end
 		details.clear
 	end
@@ -181,7 +183,7 @@ class SBPGenerator
 		end
 		sbpFile.close()
 		buildSEM()
-		puts "Built .dat/.sem for STC #{@stc} and Event Code #{@eventCode}!"
+		puts "Built SBP file (.dat/.sem) for STC #{@stc} and Event Code #{@eventCode}!"
 		sampleGen()
 	end
 	#*********************************************************************************************************************************
@@ -300,7 +302,6 @@ class SBPGenerator
 				end
 				rateCount = rateCount + 1
 			end
-		
 			@rateIngredients << eachRate.dup if eachRate.empty? == false
 			eachRate.clear
 		end
@@ -468,6 +469,10 @@ class SBPGenerator
 			end
 			
 			if rate['Processing Category'] == 'O' #Catch Open & Distribute
+				next
+			elsif @cmLetters and rate['Rate Indicator'] != 'AL'
+				next
+			elsif @cmFlats and rate['Rate Indicator'] != 'AF'
 				next
 			else
 				baseline['Service Type Code'] = @stc
@@ -770,7 +775,7 @@ class SBPGenerator
 				imdSem.close()
 				lines.clear()
 				sampleCount = 0
-				puts "Built SBP IMD sample (evs/sem) for STC #{@stc} and Facility Type #{dri}!"
+				puts "Built SBP IMD sample (.evs/.sem) for STC #{@stc} and Facility Type #{dri}!"
 			end
 		end
 	end
