@@ -45,9 +45,7 @@ class ManifestGenerator
 		@type = '1'
 		@isDomestic = false
 		@trim = ''
-		
 		@nsa = false
-		
 		@rateCheck = RateCheck.new()
 		
 		pullClasses("#{File.dirname(__FILE__)}\\mailclasses.txt")

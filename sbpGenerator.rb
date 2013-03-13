@@ -52,9 +52,6 @@ class SBPGenerator
 		@isReturns = false #Returns product?  Used to set type to '3' and permit/permit ZIP to MR-type permit.
 		@cmFlats = false
 		@cmLetters = false
-		
-		@nsa = false
-		
 		@rateCheck = RateCheck.new()
 		
 		pullClasses("#{File.dirname(__FILE__)}\\mailclasses.txt")
@@ -193,18 +190,6 @@ class SBPGenerator
 		choice = gets.chomp.downcase
 		return true if choice == 'y'
 		return false if choice != 'y'
-	end
-	#*********************************************************************************************************************************
-	def isNSA()
-		puts "Do you want to generate this file for NSA rate purposes (y/n)? (Utilizes Custom Contracts, MID 911911911, PI 911)"
-		prompt
-		answer = gets.chomp.downcase
-		if answer == 'y'
-			puts "The generator will utilize the NSA mailer Custom Contracts (MID 911911911, PI 911)"
-			@mid = '911911911'
-			@permit = '911'
-		end
-		@nsa = true
 	end
 	#*********************************************************************************************************************************
 	def pickScanEvent()
@@ -445,8 +430,6 @@ class SBPGenerator
 	#*********************************************************************************************************************************
 	#Detail Generator
 	def detailGen()
-		#isNSA() if @nsa == false #Checks to see if user wants to utilize NSA mailer information or not.  Only runs once according to @nsa.
-		
 		@detailVals['Mail Class'] = @mailClass
 		@detailVals['Mail Owner Mailer ID'] = @mid
 		@detailVals['Payment Account Number'] = @permit
@@ -470,10 +453,10 @@ class SBPGenerator
 			
 			if rate['Processing Category'] == 'O' #Catch Open & Distribute
 				next
-			elsif @cmLetters and rate['Rate Indicator'] != 'AL'
-				next
-			elsif @cmFlats and rate['Rate Indicator'] != 'AF'
-				next
+			elsif (@cmLetters and rate['Rate Indicator'] != 'AL') or (not @cmLetters and rate['Rate Indicator'] == 'AL')
+				next #Skip rate when doing Critical Mail Letters and rate indicator is not CM Letters ('AL'), or when it's not CM Letters but runs into 'AL' rate indicator.
+			elsif (@cmFlats and rate['Rate Indicator'] != 'AF') or (not @cmFlats and rate['Rate Indicator'] == 'AF')
+				next #Skip rate when doing Critical Mail Flats and rate indicator is not CM Flats ('AF'), or when it's not CM Flats but runs into 'AF' rate indicator.
 			else
 				baseline['Service Type Code'] = @stc
 				baseline['Extra Service Code 1st Service'] = @firstServiceCode
