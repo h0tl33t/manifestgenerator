@@ -432,7 +432,8 @@ class ManifestGenerator
 					end
 					
 					#Catch any rates with Discount Type Codes
-					baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*'
+					baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*' and rate['Discount and Surcharge'] != 'N1'
+					baseline['Surcharge Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] == 'N1'
 					
 					#Catch Non-Profit SA and S2 Rate Ingredients (for both published and NSA)
 					if (@mailClass == 'S2' or @mailClass == 'SA') and ['N5', 'ND', 'NM', 'NT', 'NR', 'NH', 'NB'].include?(rate['Rate Indicator'])

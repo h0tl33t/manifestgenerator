@@ -7,7 +7,7 @@
 
 $:.unshift File.dirname($0) #Necessary for OCRA (ruby .exe packager) to load additional files from the same directory as the EVS/SBP Automator
 
-@operations = { '1' => 'Generate EVS Files', '2' => 'Generate SBP Files', '3' => 'Validate Rates', '4' => 'Generate Shell Command' }
+@operations = { '1' => 'Generate EVS Files', '2' => 'Generate SBP Files', '3' => 'Validate EVS Rates', '4' => 'Generate Shell Command' }
 @input = ''
 @stillWorking = true
 
@@ -37,6 +37,7 @@ while @stillWorking
 		load "sbpGenerator.rb"
 	when '3'
 		puts "Selected 3 - #{@operations['3']}!"
+		load "varianceReportGrabber.rb"
 		load "validateRates.rb"
 	when '4'
 		puts "Selected 4 - #{@operations['4']}!"
