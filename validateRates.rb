@@ -22,9 +22,9 @@ class RateValidate
 		
 		#Clear existing files (necessary because log methods utilize 'a' write process)
 		File.delete("#{@workPath}/#{@efn}_validationResults.csv") if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
-		File.delete("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv") if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
+		#File.delete("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv") if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
 		
-		sampleFile = checkSample()
+		#sampleFile = checkSample()
 		
 		@efn = ''
 		efns = getEFN()
@@ -33,11 +33,11 @@ class RateValidate
 				@efn = eachEFN
 				compare()
 				#compareSample(sampleFile) if sampleFile != ''
-				#puts "Validation results generated and stored in #{@workPath}/#{@efn}_validationResults.csv!" if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
-				#puts "Generation of #{@workPath}/#{@efn}_validationResults.csv failed.." if not File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
+				puts "Validation results generated and stored in #{@workPath}/#{@efn}_validationResults.csv!" if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
+				puts "Generation of #{@workPath}/#{@efn}_validationResults.csv failed.." if not File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
 			end
-			puts "Validation results generated and stored in #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv!" if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
-			puts "Generation of #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv failed.." if not File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
+			#puts "Validation results generated and stored in #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv!" if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
+			#puts "Generation of #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv failed.." if not File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
 		end
 		puts "Press any key to exit the program."
 		stop = gets.chomp

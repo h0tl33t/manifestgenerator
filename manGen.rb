@@ -923,7 +923,7 @@ class ManifestGenerator
 				countryCode = '  0'
 			end
 			
-			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}0#{@mid}#{zip}01THDSN0#{@date}000000   0"
+			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}1#{@mid}#{zip}01THDSN0#{@date}000000   0"
 			lines << sampleLine
 		end
 		statsFile = File.open("#{$targetPath}\\Generated EVS Files\\STATS_#{@date}#{@time}#{mclass}.DAT", 'w')
