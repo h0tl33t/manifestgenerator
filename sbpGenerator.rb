@@ -874,6 +874,15 @@ class SBPGenerator
 		end
 	end
 	#*********************************************************************************************************************************
+	#Determine 'Marking' field value for STATS sample files
+	def statsMarking(value)  #Currently only handles LW, the rest are defaulted to '00'
+		if value == 'LW'
+			return '36'
+		else
+			return '00'
+		end
+	end
+	#*********************************************************************************************************************************
 	#Builds out a STATS File Version 2
 	def buildSTATSv2()
 		lines = []
@@ -942,6 +951,7 @@ class SBPGenerator
 			length = statsSize(d['Length']).rjust(3, '0')
 			height = statsSize(d['Height']).rjust(2, '0')
 			width = statsSize(d['Width']).rjust(2, '0')
+			marking = statsMarking(d['Mail Class'])
 			
 			if @intClasses.include?(d['Mail Class'])
 				zip = '     '
@@ -954,7 +964,7 @@ class SBPGenerator
 				countryCode = '  0'
 			end
 			
-			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}0#{@mid}#{zip}01THDSN0#{@date}000000   0#{@originZIP[0,3]}"
+			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}0#{@mid}#{zip}01THDSN0#{@date}0000#{marking}   0#{@originZIP[0,3]}"
 			lines << sampleLine
 		end
 		statsFile = File.open("#{$targetPath}\\Generated SBP Files\\STATS_#{@date}#{@time}SBP_#{@stc}.DAT", 'w')

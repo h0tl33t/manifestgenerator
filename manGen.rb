@@ -800,7 +800,7 @@ class ManifestGenerator
 			return '53' #Code for Media Mail
 		elsif value == 'RP'
 			return '5I' #Code for PRS
-		elsif value == 'PS'
+		elsif value == 'PS' or value == 'LW'
 			return '5H' #Code for Parcel Select
 		else
 			return '50' #Package Services Default
@@ -822,10 +822,8 @@ class ManifestGenerator
 			return 'K' if ri == 'C7'
 			return 'L' if ri == 'C8'
 			return '8' if ri == 'E8' or ri == 'E9' or ri == 'EE' #Regular/Medium Flat Rate Box
-			
 			return '5' #Parcels
 		elsif pc == '4'
-		
 			return '5' #Parcels
 		elsif pc == '5'
 			return '9' if ri == 'FP' #Flat Rate Padded Envelope
@@ -838,6 +836,15 @@ class ManifestGenerator
 			return '7' #PMOD/Pallets
 		else
 			return '0' #Default/Fill
+		end
+	end
+	#*********************************************************************************************************************************
+	#Determine 'Marking' field value for STATS sample files
+	def statsMarking(value)  #Currently only handles LW, the rest are defaulted to '00'
+		if value == 'LW'
+			return '36'
+		else
+			return '00'
 		end
 	end
 	#*********************************************************************************************************************************
@@ -911,6 +918,7 @@ class ManifestGenerator
 			length = statsSize(d['Length']).rjust(3, '0')
 			height = statsSize(d['Height']).rjust(2, '0')
 			width = statsSize(d['Width']).rjust(2, '0')
+			marking = statsMarking(d['Mail Class'])
 			
 			if @intClasses.include?(d['Mail Class'])
 				zip = '     '
@@ -923,7 +931,7 @@ class ManifestGenerator
 				countryCode = '  0'
 			end
 			
-			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}1#{@mid}#{zip}01THDSN0#{@date}000000   0"
+			sampleLine = "#{@date}5405315#{count.to_s.rjust(4, ' ')}#{pounds}#{ounces}   1#{classInfo}#{shape}K000#{length}#{height}#{width}0100#{@originZIP}#{pic}1#{@mid}#{zip}01THDSN0#{@date}0000#{marking}   0"
 			lines << sampleLine
 		end
 		statsFile = File.open("#{$targetPath}\\Generated EVS Files\\STATS_#{@date}#{@time}#{mclass}.DAT", 'w')
