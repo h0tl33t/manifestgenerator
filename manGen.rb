@@ -25,6 +25,7 @@ class ManifestGenerator
 		@detailVals = {}
 		@detailRecords = []
 		@mailClass = ''
+		@efn = ''
 		@baselineFile = "#{File.dirname(__FILE__)}\\baseline.raw"
 		@stcs = "#{File.dirname(__FILE__)}\\stcs.csv"
 		@rateFile = "#{File.dirname(__FILE__)}\\rates.csv"  #To test current valid rate ingredients
@@ -55,6 +56,7 @@ class ManifestGenerator
 		setClass()
 		fileGen() if @mailClass != 'ALL'
 		buildAll() if @mailClass == 'ALL'
+		buildExtracts()
 		exit()
 	end
 	#*********************************************************************************************************************************
@@ -227,10 +229,11 @@ class ManifestGenerator
 		end
 	end
 	#*********************************************************************************************************************************
-	#EFN Generator -- take (MID)
+	#EFN Generator
 	def efnGen()
 		classIdentifier = (@mailClasses.index(@mailClass) + 1).to_s.rjust(2, '0')
-		return "92750#{@mid}#{classIdentifier}#{rand(999999).to_s.rjust(6, '0')}"
+		@efn = "92750#{@mid}#{classIdentifier}#{rand(999999).to_s.rjust(6, '0')}"
+		return @efn
 	end
 	#*********************************************************************************************************************************
 	#PIC Generator -- take (MID, STC)
@@ -627,7 +630,7 @@ class ManifestGenerator
 		end
 	end
 	#*********************************************************************************************************************************
-	#Pulls the detail records for sample usage.
+	#Pulls the detail records for sample and extract usage.
 	def pullDetails()
 		detail = {}
 		allDetails = []
@@ -1025,6 +1028,89 @@ class ManifestGenerator
 		wholeNum = value[1, 4] #Pulls the 2nd (A), 3rd (B), 4th (C) and 5th (D) digit from the format 0ABCDdddd where 'd' is the decimal portion of the eVS weight convention
 		decimal = value[5, 4]  #Pulls the decimal portion
 		return "#{wholeNum}.#{decimal}"
+	end
+	#*********************************************************************************************************************************
+	#Method to Handle Extracts
+	def buildExtracts()
+		puts "Would you like to build any extracts (mis-shipped, duplicate package, or un-manifested)? (Y/N)"
+		prompt
+		choice = gets.chomp.upcase
+		if choice == 'Y'
+			puts "Enter the number of the extract you would like to build:"
+			puts "1) Mis-Shipped"
+			puts "2) Duplicate Package"
+			puts "3) Un-manifested"
+			prompt
+			extract = gets.chomp
+			while not ['1','2','3'].include?(extract)
+				puts "#{extract} is not a valid entry.  Please enter 1, 2, or 3."
+				prompt
+				extract = gets.chomp
+			end
+			
+			extract = extract.to_i
+			case extract
+			when 1
+				buildMisshipped()
+			when 2
+				buildDupPackage()
+			when 3
+				buildUnmanifested()
+			end
+		end
+	end
+	#*********************************************************************************************************************************
+	#Mis-Shipped Extract Builder
+	def buildMisshipped()
+		puts "Mis-shipped"
+		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
+		first = true
+		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtract_Misship#{@date}_#{@mailClass}.dat", 'w')
+		details.each do |d|
+			extractFile.write("\n") if not first
+			extractFile.write("#{d['Tracking Number'][12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(31, ' ')}15TEST-MISSHIPD PARCEL#{' '.ljust(20, ' ')}#{@date}#{Time.now.strftime('%H%M')}")
+			first = false
+		end
+		extractFile.close()
+		extractSem = File.open("#{$targetPath}\\Generated EVS Files\\PTSArrival_Misship#{@date}_#{@mailClass}.sem", 'w')
+		extractSem.close()
+		puts "Built mis-shipped extract (.dat/.sem) for #{@mailClass}!"
+	end
+	#*********************************************************************************************************************************
+	#Duplicate Package Extract Builder
+	def buildDupPackage()
+		puts "Duplicate Package"
+		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
+		first = true
+		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractManDup#{@date}_#{@mailClass}.dat", 'w')
+		details.each do |d|
+			extractFile.write("\n") if not first
+			extractFile.write("#{['01','16'].sample}#{@date}#{Time.now.strftime('%H%M')}#{d['Tracking Number']}#{@efn.ljust(34, ' ')}#{rand(10000..99999)}    #{@mid}")
+			first = false
+		end
+		extractFile.close()
+		extractSem = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractManDup#{@date}_#{@mailClass}.sem", 'w')
+		extractSem.close()
+		puts "Built duplicate package extract (.dat/.sem) for #{@mailClass}!"
+	end
+	#*********************************************************************************************************************************
+	#Un-manifested Extract Builder
+	def buildUnmanifested()
+		puts "Un-manifested"
+		stc = getBaseSTC(@mailClass)
+		pic = picGen(stc)
+		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
+		first = true
+		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractWkly-Unman#{@date}_#{@mailClass}.dat", 'w')
+		details.each do |d|
+			extractFile.write("\n") if not first
+			extractFile.write("#{pic[12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(33, ' ')}UN-MANIFESTED PARCEL RECORD#{' '.ljust(13, ' ')}#{@date}#{Time.now.strftime('%H%M')}")
+			first = false
+		end
+		extractFile.close()
+		extractSem = File.open("#{$targetPath}\\Generated EVS Files\\PTSArrivalWkly-Unman#{@date}_#{@mailClass}.sem", 'w')
+		extractSem.close()
+		puts "Built un-manifested extract (.dat/.sem) for #{@mailClass}!"
 	end
 	#*********************************************************************************************************************************
 end
