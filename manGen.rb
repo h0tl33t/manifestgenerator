@@ -1062,7 +1062,6 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Mis-Shipped Extract Builder
 	def buildMisshipped()
-		puts "Mis-shipped"
 		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
 		first = true
 		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtract_Misship#{@date}_#{@mailClass}.dat", 'w')
@@ -1079,7 +1078,6 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Duplicate Package Extract Builder
 	def buildDupPackage()
-		puts "Duplicate Package"
 		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
 		first = true
 		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractManDup#{@date}_#{@mailClass}.dat", 'w')
@@ -1096,13 +1094,11 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Un-manifested Extract Builder
 	def buildUnmanifested()
-		puts "Un-manifested"
 		stc = getBaseSTC(@mailClass)
 		pic = picGen(stc)
-		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
 		first = true
 		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractWkly-Unman#{@date}_#{@mailClass}.dat", 'w')
-		details.each do |d|
+		5.times do
 			extractFile.write("\n") if not first
 			extractFile.write("#{pic[12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(33, ' ')}UN-MANIFESTED PARCEL RECORD#{' '.ljust(13, ' ')}#{@date}#{Time.now.strftime('%H%M')}")
 			first = false
