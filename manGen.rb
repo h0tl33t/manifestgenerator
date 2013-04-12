@@ -266,7 +266,7 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Valid ZIP Generator -- take (ZONE)
 	def validZIP(zone)
-		zips = {'00' => '20260', '01' => '20260', '02' => '24001', '03' => '25505', '04' => '35601', '05' => '61001', '06' => '74333', '07' => '87501', '08' => '90210'}
+		zips = {'00' => '20260', '01' => '20260', '02' => '24001', '03' => '25505', '04' => '61001', '05' => '35601', '06' => '74333', '07' => '87501', '08' => '90210'}
 		return zips[zone]
 	end
 	#*********************************************************************************************************************************
@@ -1062,12 +1062,19 @@ class ManifestGenerator
 	#*********************************************************************************************************************************
 	#Mis-Shipped Extract Builder
 	def buildMisshipped()
-		details = pullDetails().sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
+		dduDetails = []
 		first = true
-		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtract_Misship#{@date}_#{@mailClass}.dat", 'w')
+		details = pullDetails() #sample(5) #Limit extract to 5 records which are sampled at random.  Using all detail records would clutter the extract reports.
 		details.each do |d|
+			dduDetails << d if d['Destination Rate Indicator'] == 'D'
+			puts "#{d['Tracking Number']} has DRI #{d['Destination Rate Indicator']}(should be 'D')." if d['Destination Rate Indicator'] == 'D'
+		end
+		puts dduDetails.size
+		dduDetails = dduDetails.sample(5) if dduDetails.size > 5
+		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtract_Misship#{@date}_#{@mailClass}.dat", 'w')
+		dduDetails.each do |d|
 			extractFile.write("\n") if not first
-			extractFile.write("#{d['Tracking Number'][12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(31, ' ')}15TEST-MISSHIPD PARCEL#{' '.ljust(20, ' ')}#{@date}#{Time.now.strftime('%H%M')}")
+			extractFile.write("#{d['Tracking Number'][12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(31, ' ')}15TEST-MISSHIPD PARCEL#{' '.ljust(20, ' ')}#{@date}#{Time.now.strftime('%H%M')}#{' '.ljust(28,' ')}")
 			first = false
 		end
 		extractFile.close()
@@ -1100,7 +1107,7 @@ class ManifestGenerator
 		extractFile = File.open("#{$targetPath}\\Generated EVS Files\\PTSExtractWkly-Unman#{@date}_#{@mailClass}.dat", 'w')
 		5.times do
 			extractFile.write("\n") if not first
-			extractFile.write("#{pic[12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(33, ' ')}UN-MANIFESTED PARCEL RECORD#{' '.ljust(13, ' ')}#{@date}#{Time.now.strftime('%H%M')}")
+			extractFile.write("#{pic[12,22]}#{' '.ljust(60, ' ')}#{rand(10000..99999)}#{' '.ljust(33, ' ')}UN-MANIFESTED PARCEL RECORD#{' '.ljust(13, ' ')}#{@date}#{Time.now.strftime('%H%M')}#{' '.ljust(28, ' ')}")
 			first = false
 		end
 		extractFile.close()

@@ -459,7 +459,7 @@ class RateCheck
 	def formatPounds(value)
 		wholeNum = value[1, 4] #Pulls the 2nd (A), 3rd (B), 4th (C) and 5th (D) digit from the format 0ABCDdddd where 'd' is the decimal portion of the eVS weight convention
 		decimal = value[5, 4]  #Pulls the decimal portion
-		return "#{wholeNum}.#{decimal}"
+		return "#{wholeNum}.#{decimal}".to_f.round(2).to_s
 	end
 	#*********************************************************************************************************************************
 	#Re-format weight from manifest formatting

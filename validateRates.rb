@@ -12,6 +12,8 @@
 	Dir.chdir($targetPath)
 	#*********************************************************************************************************************************
 
+require 'benchmark'
+
 class RateValidate
 	#*********************************************************************************************************************************
 	def initialize()
@@ -93,17 +95,46 @@ class RateValidate
 		variance = loadFile('Variance')
 		matchedTier = ''
 		matched = false
-		
-		variance.each do |varRecord|
-			rateCheck.each do |checkRecord|
-				if varRecord['PIC'].delete("'") == checkRecord['Tracking Number'].delete("'")
+		comparedRecords = []
+		Benchmark.bm do |bench|
+		bench.report {
+		#Have to iterate over two arrays full of hashes, which can get slow when the arrays grow in size.  Once hashes have been matched up from each array, delete them since we aren't using them for anything else.
+		variance.each_with_index do |varRecord, varianceIndex|
+			checkRecord = rateCheck.find {|check| check['Tracking Number'] == varRecord['PIC']}
+			matchedTier, matched = "Base Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2)
+			matchedTier, matched = "Plus Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
+			matchedTier, matched = "both Base and Plus Rates", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2) and varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
+			comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}"] if matched
+			comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found."] unless matched
+			matched = false
+			checkRecord.clear
+=begin
+			rateCheck.each_with_index do |checkRecord, rateIndex|
+				if varRecord['PIC'].delete("'") == checkRecord['Tracking Number'].delete("'") #Some PICs/Tracking Numbers do not contain ' while others do.  To establish a base, delete all '
 					matchedTier, matched = "Base Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2)
 					matchedTier, matched = "Plus Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
 					matchedTier, matched = "both Base and Plus Rates", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2) and varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
-					logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}") if matched
-					logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found.") if not matched
+					#logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}") if matched
+					#logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found.") unless matched
+					comparedRecords << [varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}"] if matched
+					comparedRecords << [varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found."] unless matched
+					variance.delete_at(varianceIndex)
+					rateCheck.delete_at(rateIndex)
+					puts "Variance Size: #{variance.length}"
+					puts "RateCheck Size: #{rateCheck.length}"
+					puts "***********************"
+					break
 				end
+				matched = false
+				#puts "Variance Size: #{variance.length}"
+				#puts "RateCheck Size: #{rateCheck.length}"
+				#puts "***********************"
 			end
+=end
+		end
+		sortedData = comparedRecords.sort_by {|array| array[3]} #Sort by varRecord['Rate'] which is index 3 in each array inside of comparedRecords array
+		logResults(sortedData)
+		}
 		end
 	end
 	#*********************************************************************************************************************************
@@ -168,13 +199,20 @@ class RateValidate
 				detail = line.chomp.split(',')
 				fieldNames.each_with_index do |name, index|
 					detailRow.merge!(name.to_s => detail[index].to_s)
+					detailRow['PIC'] = "#{detailRow['PIC']}".delete("'") if param[0] == 'Variance'
+					detailRow['Tracking Number'] = "#{detailRow['Tracking Number']}".delete("'") if param[0] == 'Rate Check'
 				end
 				detailRecords << detailRow.dup if detailRow.empty? == false
 				detailRow.clear
 			end
 			file.close()
 		end
-		return detailRecords
+		return detailRecords.sort_by {|hash| hash['Tracking Number']} if param[0] == 'Rate Check'
+		return detailRecords.sort_by {|hash| hash['PIC']} if param[0] == 'Variance'
+	end
+	#*********************************************************************************************************************************
+	def sortFile(hashArray) #Takes output from loadFile (an array of hashes)
+		
 	end
 	#*********************************************************************************************************************************
 	def getMonth(number)
@@ -182,11 +220,24 @@ class RateValidate
 		return months[number]
 	end
 	#*********************************************************************************************************************************
+=begin	
 	def logResults(pic, mc, pc, ri, dri, weight, zone, rate, result)
 		log = File.open("#{@workPath}/#{@efn}_validationResults.csv",'a')
 		log.write("Tracking Number,Mail Class,Processing Category,Rate Indicator,Destination Rate Indicator,Weight,Zone,Rate Validated,Validation Result") if File.zero?("#{@workPath}/#{@efn}_validationResults.csv")
 		log.write("\n")
 		log.write("#{pic},#{mc},#{pc},#{ri},#{dri},#{weight},#{zone},#{rate},#{result}")
+		log.close()
+	end
+=end
+	#*********************************************************************************************************************************
+	def logResults(results) #Where results is a 2-dimensional array (array of arrays) with each sub-array representing a single line of results
+		log = File.open("#{@workPath}/#{@efn}_validationResults.csv",'a')
+		log.write("Tracking Number,Mail Class,Processing Category,Rate Indicator,Destination Rate Indicator,Weight,Manifest Zone,EVS Zone,Base Rate,Plus Rate,Variance Rate,Validation Result")
+		results.each do |line|
+			line = line.join(",")
+			log.write("\n")
+			log.write(line)
+		end
 		log.close()
 	end
 	#*********************************************************************************************************************************
