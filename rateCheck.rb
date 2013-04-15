@@ -168,6 +168,12 @@ class RateCheck
 		detailRecord['Domestic Zone'] = '00' if ['01','02'].include?(detailRecord['Domestic Zone'])
 		detailRecord['Weight'] = formatPounds(detailRecord['Weight']) if rateTier == 'base'
 		
+		flatRateTable = loadTable("baseEXFlat.csv") if rateTier == 'base'
+		flatRateTable = loadTable("plusEXFlat.csv") if rateTier == 'plus'
+		flatRateTable.each do |flatRate|
+			return flatRate['Rate'] if detailRecord['Rate Indicator'] == flatRate['Rate Indicator']
+		end
+		
 		rateTable = loadTable("baseEX.csv") if rateTier == 'base'
 		rateTable = loadTable("plusEX.csv") if rateTier == 'plus'
 		rateTable.each do |rate|
