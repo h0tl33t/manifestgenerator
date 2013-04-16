@@ -281,22 +281,24 @@ class RateCheck
 	end
 	#*********************************************************************************************************************************
 	def findRatePM(detailRecord, rateTier)
+		nonCommPlusCubicRate = 'SP'
 		detailRecord['Domestic Zone'] = '00' if ['01','02'].include?(detailRecord['Domestic Zone'])
-		detailRecord['Weight'] = formatPounds(detailRecord['Weight'])
+		detailRecord['Weight'] = formatPounds(detailRecord['Weight']) if rateTier == 'base'
 		detailRecord['Weight'] = calcDimWeight(detailRecord['Rate Indicator'], detailRecord['Weight'], detailRecord['Length'], detailRecord['Height'], detailRecord['Width']) if rateTier == 'plus'
 		
 		cubicRates = ['CP','P5','P6','P7','P8','P9']
 		if cubicRates.include?(detailRecord['Rate Indicator'])
-			detailRecord['Length'] = formatCubic(detailRecord['Length'])
-			detailRecord['Height'] = formatCubic(detailRecord['Height'])
-			detailRecord['Width'] = formatCubic(detailRecord['Width'])
+			detailRecord['Length'] = formatCubic(detailRecord['Length']) if rateTier == 'base'
+			detailRecord['Height'] = formatCubic(detailRecord['Height']) if rateTier == 'base'
+			detailRecord['Width'] = formatCubic(detailRecord['Width']) if rateTier == 'base'
 			tier = calcTier(detailRecord['Length'], detailRecord['Height'], detailRecord['Width'])
-			detailRecord['Rate Indicator'] = 'SP' if tier > 0.50 or rateTier == 'base' #Catch pieces that are greater than 0.50 cubic feet or if the price tier is Comm Base, which are recalculated at Single Piece pricing.
+			detailRecord['Rate Indicator'] = 'SP' if tier > 0.50 #Catch pieces that are greater than 0.50 cubic feet, which are recalculated at Single Piece pricing.
 			if detailRecord['Rate Indicator'] != 'SP'
 				cubicRateTable = loadTable("cubicPM.csv")
 				cubicRateTable.each do |cubicRate|
 					if tier <= cubicRate['Tier'].to_f
-						return cubicRate[detailRecord['Domestic Zone']]
+						return cubicRate[detailRecord['Domestic Zone']] if rateTier == 'plus'
+						break if rateTier == 'base'
 					end
 				end
 			end
