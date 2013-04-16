@@ -290,7 +290,7 @@ class ManifestGenerator
 			return '01400' #14 inches (1728 cubic inches is minimum for DR/DN...DN volume is multiplied by 0.785)
 		elsif validVolumeRequired.include?(rateInd)
 			minVol = 0.00
-			maxVol = 12.00  #9.50 will go to 0.49 (Tier 5).  Anything above will test recalculation to SP from CP.
+			maxVol = 10.00  #9.50 will go to 0.49 (Tier 5).  Anything above will test recalculation to SP from CP.
 			part = rand(minVol..maxVol).round(2).to_s.split('.')
 			wholeNum = part[0].rjust(3, '0')
 			decimal = part[1].ljust(2, '0')
@@ -433,6 +433,8 @@ class ManifestGenerator
 						baseline['COD Amount Due Sender'] = '0005000' if stcVal == '915' #If COD STC, fill COD Amount Due Sender to $50
 						baseline['Tracking Number'] = picGen(stcVal) if stcKey == 'Service Type Code'
 					end
+					
+					baseline['Rate Indicator'] = rate['Rate Indicator'] if baseline['Rate Indicator'] != rate['Rate Indicator'] #For some reason, rate indicator is magically re-setting to SP during this loop..put this catch in to change the baseline back to the appropriate rate.
 					
 					#Catch any rates with Discount Type Codes
 					baseline['Discount Type'] = rate['Discount and Surcharge'] if rate['Discount and Surcharge'] != '*' and rate['Discount and Surcharge'] != 'N1'

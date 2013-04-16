@@ -282,22 +282,21 @@ class RateCheck
 	#*********************************************************************************************************************************
 	def findRatePM(detailRecord, rateTier)
 		detailRecord['Domestic Zone'] = '00' if ['01','02'].include?(detailRecord['Domestic Zone'])
-		detailRecord['Weight'] = formatPounds(detailRecord['Weight']) if rateTier == 'base'
-		detailRecord['Weight'] = calcDimWeight(detailRecord['Rate Indicator'], detailRecord['Weight'], detailRecord['Length'], detailRecord['Height'], detailRecord['Width']) if rateTier == 'base'
+		detailRecord['Weight'] = formatPounds(detailRecord['Weight'])
+		detailRecord['Weight'] = calcDimWeight(detailRecord['Rate Indicator'], detailRecord['Weight'], detailRecord['Length'], detailRecord['Height'], detailRecord['Width']) if rateTier == 'plus'
 		
 		cubicRates = ['CP','P5','P6','P7','P8','P9']
 		if cubicRates.include?(detailRecord['Rate Indicator'])
-			detailRecord['Length'] = formatCubic(detailRecord['Length']) if rateTier == 'base'
-			detailRecord['Height'] = formatCubic(detailRecord['Height']) if rateTier == 'base'
-			detailRecord['Width'] = formatCubic(detailRecord['Width']) if rateTier == 'base'
+			detailRecord['Length'] = formatCubic(detailRecord['Length'])
+			detailRecord['Height'] = formatCubic(detailRecord['Height'])
+			detailRecord['Width'] = formatCubic(detailRecord['Width'])
 			tier = calcTier(detailRecord['Length'], detailRecord['Height'], detailRecord['Width'])
-			detailRecord['Rate Indicator'] = 'SP' if tier > 0.50 #Catch pieces that are greater than 0.50 cubic feet, which are recalculated at Single Piece pricing.
+			detailRecord['Rate Indicator'] = 'SP' if tier > 0.50 or rateTier == 'base' #Catch pieces that are greater than 0.50 cubic feet or if the price tier is Comm Base, which are recalculated at Single Piece pricing.
 			if detailRecord['Rate Indicator'] != 'SP'
 				cubicRateTable = loadTable("cubicPM.csv")
 				cubicRateTable.each do |cubicRate|
 					if tier <= cubicRate['Tier'].to_f
-						return cubicRate[detailRecord['Domestic Zone']] if rateTier == 'plus'
-						return '' if rateTier == 'base'
+						return cubicRate[detailRecord['Domestic Zone']]
 					end
 				end
 			end
@@ -495,7 +494,7 @@ class RateCheck
 	#*********************************************************************************************************************************
 	#Determine the Priority Mail Cubic Price Tier
 	def calcTier(length, height, width)
-		return (length.to_f * height.to_f * width.to_f)/1728.0
+		return ((length.to_f * height.to_f * width.to_f)/1728.0).round(4)
 	end
 	#*********************************************************************************************************************************
 	def calcDimWeight(rateInd, weight, length, height, width) #Calculate dimensional weight for Dimensional Rect. and Non-Rect.
