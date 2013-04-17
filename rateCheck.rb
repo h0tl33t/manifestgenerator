@@ -74,8 +74,8 @@ class RateCheck
 				plusRate = ''
 			end
 			
-			baseRate = validateRate(baseRate)
-			plusRate = validateRate(plusRate)
+			#baseRate = validateRate(baseRate)
+			#plusRate = validateRate(plusRate)
 			
 			file.write("\n")
 			#file.write("#{detailRecord['Tracking Number']},#{baseRate},#{plusRate}")
@@ -411,7 +411,8 @@ class RateCheck
 	end
 	#*********************************************************************************************************************************
 	def findRateSM(detailRecord)
-		detailRecord['Weight'] = formatPounds(detailRecord['Weight'])
+		nonBarcodedSurcharge = 0.064 #The non-barcoded surcharge is added to any piece with barcode value '0' and is NOT 5-Digit sort (Rate Indicator '5D' for-profit, 'N5' non-profit)
+		detailRecord['Weight'] = formatPounds(detailRecord['Weight'], true)
 		nonProfit = isNonProfit(detailRecord['Rate Indicator'])
 		
 		if nonProfit
@@ -421,6 +422,7 @@ class RateCheck
 				rateTable = loadTable("SMNPUnder3Presorted.csv") if detailRecord['Processing Category'] == '3' or detailRecord['Mail Class'] == 'S2' #Machinable SA and all S2
 				rateTable = loadTable("SMNPUnder3Irregular.csv") if detailRecord['Processing Category'] == '4' and detailRecord['Mail Class'] == 'SA'#Irregular SA
 				rateTable.each do |rate|
+					return (rate[detailRecord['Rate Indicator']].to_f + nonBarcodedSurcharge).to_s if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator'] and detailRecord['Barcode'] == '0' and detailRecord['Rate Indicator'] != 'N5'
 					return rate[detailRecord['Rate Indicator']] if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']
 				end
 			elsif detailRecord['Weight'].to_f > 0.20625
@@ -435,12 +437,14 @@ class RateCheck
 					perPiece = rate[detailRecord['Rate Indicator']].to_f if rate['Destination Rate Indicator'] == 'Per Piece'
 					perOunce = rate[detailRecord['Rate Indicator']].to_f if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']
 				end
-				return (perPiece + detailRecord['Weight'].to_f * perOunce).round(4).to_s
+				return ((perPiece + detailRecord['Weight'].to_f * perOunce).round(3) + nonBarcodedSurcharge).to_s if detailRecord['Barcode'] == '0' and detailRecord['Rate Indicator'] != 'N5'
+				return (perPiece + detailRecord['Weight'].to_f * perOunce).round(3).to_s
 			end
 		else
 			if detailRecord['Weight'].to_f <= 0.20625
 				rateTable = loadTable("S2Under3.csv")
 				rateTable.each do |rate|
+					return (rate[detailRecord['Rate Indicator']].to_f + nonBarcodedSurcharge).to_s if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator'] and detailRecord['Barcode'] == '0' and detailRecord['Rate Indicator'] != '5D'
 					return rate[detailRecord['Rate Indicator']] if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']
 				end
 			elsif detailRecord['Weight'].to_f > 0.20625
@@ -451,7 +455,8 @@ class RateCheck
 					perPiece = rate[detailRecord['Rate Indicator']].to_f if rate['Destination Rate Indicator'] == 'Per Piece'
 					perOunce = rate[detailRecord['Rate Indicator']].to_f if detailRecord['Destination Rate Indicator'] == rate['Destination Rate Indicator']
 				end
-				return (perPiece + detailRecord['Weight'].to_f * perOunce).round(4).to_s
+				return ((perPiece + detailRecord['Weight'].to_f * perOunce).round(3) + nonBarcodedSurcharge).to_s if detailRecord['Barcode'] == '0' and detailRecord['Rate Indicator'] != '5D'
+				return (perPiece + detailRecord['Weight'].to_f * perOunce).round(3).to_s
 			end
 		end
 		
@@ -463,10 +468,12 @@ class RateCheck
 	end
 	#*********************************************************************************************************************************
 	#Re-format weight from manifest formatting
-	def formatPounds(value)
+	def formatPounds(value, *standardMailFlag)
 		wholeNum = value[1, 4] #Pulls the 2nd (A), 3rd (B), 4th (C) and 5th (D) digit from the format 0ABCDdddd where 'd' is the decimal portion of the eVS weight convention
 		decimal = value[5, 4]  #Pulls the decimal portion
+		return "#{wholeNum}.#{decimal}".to_f.round(4).to_s if standardMailFlag[0] #If standard mail, round weight to 4 decimal places instead of 2.
 		return "#{wholeNum}.#{decimal}".to_f.round(2).to_s
+		
 	end
 	#*********************************************************************************************************************************
 	#Re-format weight from manifest formatting

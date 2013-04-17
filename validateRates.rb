@@ -22,11 +22,7 @@ class RateValidate
 		@month = getMonth(Time.now.month)
 		@year = Time.now.year.to_s
 		
-		#Clear existing files (necessary because log methods utilize 'a' write process)
 		File.delete("#{@workPath}/#{@efn}_validationResults.csv") if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
-		#File.delete("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv") if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
-		
-		#sampleFile = checkSample()
 		
 		@efn = ''
 		efns = getEFN()
@@ -34,12 +30,9 @@ class RateValidate
 			efns.each do |eachEFN| #Set EFN and compare for each EFN/rateCheck file in /ref/
 				@efn = eachEFN
 				compare()
-				#compareSample(sampleFile) if sampleFile != ''
 				puts "Validation results generated and stored in #{@workPath}/#{@efn}_validationResults.csv!" if File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
 				puts "Generation of #{@workPath}/#{@efn}_validationResults.csv failed.." if not File.exists?("#{@workPath}/#{@efn}_validationResults.csv")
 			end
-			#puts "Validation results generated and stored in #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv!" if File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
-			#puts "Generation of #{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv failed.." if not File.exists?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
 		end
 		puts "Press any key to exit the program."
 		stop = gets.chomp
@@ -98,44 +91,20 @@ class RateValidate
 		matched = false
 		comparedRecords = []
 		Benchmark.bm do |bench|
-		bench.report {
-		#Have to iterate over two arrays full of hashes, which can get slow when the arrays grow in size.  Once hashes have been matched up from each array, delete them since we aren't using them for anything else.
-		variance.each do |varRecord|
-			checkRecord = rateCheck.find {|check| check['Tracking Number'] == varRecord['PIC']}
-			matchedTier, matched = "Base Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2)
-			matchedTier, matched = "Plus Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
-			matchedTier, matched = "both Base and Plus Rates", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2) and varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
-			comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}"] if matched
-			comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found."] unless matched
-			matched = false
-			checkRecord.clear
-=begin
-			rateCheck.each_with_index do |checkRecord, rateIndex|
-				if varRecord['PIC'].delete("'") == checkRecord['Tracking Number'].delete("'") #Some PICs/Tracking Numbers do not contain ' while others do.  To establish a base, delete all '
+			bench.report do
+				variance.each do |varRecord|
+					checkRecord = rateCheck.find {|check| check['Tracking Number'] == varRecord['PIC']}
 					matchedTier, matched = "Base Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2)
 					matchedTier, matched = "Plus Rate", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
 					matchedTier, matched = "both Base and Plus Rates", true if varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Base Rate'].to_f.round(2) and varRecord['eVS Postage + Surch ($)'].to_f.round(2) == checkRecord['Plus Rate'].to_f.round(2)
-					#logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}") if matched
-					#logResults(varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], varRecord['eVS Zone'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found.") unless matched
-					comparedRecords << [varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}"] if matched
-					comparedRecords << [varRecord['PIC'], varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found."] unless matched
-					variance.delete_at(varianceIndex)
-					rateCheck.delete_at(rateIndex)
-					puts "Variance Size: #{variance.length}"
-					puts "RateCheck Size: #{rateCheck.length}"
-					puts "***********************"
-					break
+					comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Validated at #{matchedTier}"] if matched
+					comparedRecords << ["'#{varRecord['PIC']}'", varRecord['Mail Class'], checkRecord['PC'], varRecord['Rate'], varRecord['Dest Rate'], varRecord['Weight'], checkRecord['Zone'], varRecord['eVS Zone'], checkRecord['Base Rate'], checkRecord['Plus Rate'], varRecord['eVS Postage + Surch ($)'], "Matching rate not found."] unless matched
+					matched = false
+					checkRecord.clear
 				end
-				matched = false
-				#puts "Variance Size: #{variance.length}"
-				#puts "RateCheck Size: #{rateCheck.length}"
-				#puts "***********************"
+				sortedData = comparedRecords.sort_by {|array| array[3]} #Sort by varRecord['Rate'] which is index 3 in each array inside of comparedRecords array
+				logResults(sortedData)
 			end
-=end
-		end
-		sortedData = comparedRecords.sort_by {|array| array[3]} #Sort by varRecord['Rate'] which is index 3 in each array inside of comparedRecords array
-		logResults(sortedData)
-		}
 		end
 	end
 	#*********************************************************************************************************************************
@@ -144,49 +113,6 @@ class RateValidate
 		existingValidationResults = Dir.glob("#{@workPath}/#{efn}_validationResults.csv")
 		return true unless existingValidationResults.empty?
 		return false if existingValidationResults.empty?
-	end
-	#*********************************************************************************************************************************
-	def compareSample(fileName)
-		sampleReport = loadFile('Sample', fileName)
-		variance = loadFile('Variance')
-
-		sampleReport.each do |sampleRecord|
-			variance.each do |varRecord|
-				if varRecord['PIC'].include?(sampleRecord['Package Identification Code (PIC)'][1..-1])
-					vRate = varRecord['eVS Postage + Surch ($)'].to_f.round(2)
-					sRate = sampleRecord['Sample Postage ($)'].to_f.round(2)
-					result = "Matched" if sRate == vRate
-					result = "Rates not matched" if sRate != vRate
-					logSampleResults(varRecord['PIC'], sampleRecord['Sample Source'], sampleRecord['Mail Class'], vRate, sRate, result)
-				end
-			end
-		end
-	end
-	#*********************************************************************************************************************************
-	def checkSample()		
-		puts "Checking for Reconciled Sample Reports to validate.."
-		sampleReports = Dir.glob("#{@workPath}/ReconciledReport*.csv") #Reconciled Sample Report Format: ReconciledReport(Mar-2013).csv
-		if sampleReports.size > 0
-			sampleReports.each_with_index do |report, index|
-				/\((?<m>\w*)\-(?<y>\d*)\)/ =~ report
-				if m.include?(@month) and y.include?(@year)
-					puts "Found report for current month (#{m} #{y}) - enter 'y' to validate (any other key to continue without)"
-					prompt
-					if gets.chomp.downcase == 'y'
-						puts "Will validate postage found in the variance reports against #{report}."
-						return report
-					else
-						return ''
-					end
-				else
-					puts "Found old data (will not validate) for #{m} #{y}."
-				end
-			end
-			return ''
-		else
-			puts "No Reconciled Sample Reports found to validate."
-			return ''
-		end
 	end
 	#*********************************************************************************************************************************
 	def loadFile(*param) #param[0] is type with expected values 'Rate Check', 'Variance', and 'Sample'. param[1] is a file name (used to pass in sampling report for current month)
@@ -224,16 +150,6 @@ class RateValidate
 		return months[number]
 	end
 	#*********************************************************************************************************************************
-=begin	
-	def logResults(pic, mc, pc, ri, dri, weight, zone, rate, result)
-		log = File.open("#{@workPath}/#{@efn}_validationResults.csv",'a')
-		log.write("Tracking Number,Mail Class,Processing Category,Rate Indicator,Destination Rate Indicator,Weight,Zone,Rate Validated,Validation Result") if File.zero?("#{@workPath}/#{@efn}_validationResults.csv")
-		log.write("\n")
-		log.write("#{pic},#{mc},#{pc},#{ri},#{dri},#{weight},#{zone},#{rate},#{result}")
-		log.close()
-	end
-=end
-	#*********************************************************************************************************************************
 	def logResults(results) #Where results is a 2-dimensional array (array of arrays) with each sub-array representing a single line of results
 		log = File.open("#{@workPath}/#{@efn}_validationResults.csv",'a')
 		log.write("Tracking Number,Mail Class,Processing Category,Rate Indicator,Destination Rate Indicator,Weight,Manifest Zone,EVS Zone,Base Rate,Plus Rate,Variance Rate,Validation Result")
@@ -242,15 +158,6 @@ class RateValidate
 			log.write("\n")
 			log.write(line)
 		end
-		log.close()
-	end
-	#*********************************************************************************************************************************
-	def logSampleResults(pic, type, mc, vRate, sRate, result)
-		typeNames = {'I' => 'IMD', 'S' => 'STATS', 'P' => 'PASS', 'O' => 'POS'}
-		log = File.open("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv",'a')
-		log.write("Package Indentification Code (PIC),Sample Type,Mail Class,Manifest Rate,Sample Rate,Result") if File.zero?("#{@workPath}/sampleValidationResults(#{@month}-#{@year}).csv")
-		log.write("\n")
-		log.write("#{pic},#{typeNames[type]},#{mc},#{vRate},#{sRate},#{result}")
 		log.close()
 	end
 	#*********************************************************************************************************************************
