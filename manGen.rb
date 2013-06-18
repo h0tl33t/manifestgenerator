@@ -348,6 +348,10 @@ class ManifestGenerator
 			@permit = '33'
 			@permitZIP = '20260'
 			@type = '1'
+			
+			#@mid = '010101010' #Prod MID
+			#@permit = '123'		#Prod Permit
+			#@permitZIP = '99999'#Prod Permit ZIP
 		end
 	end
 	#*********************************************************************************************************************************

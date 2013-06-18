@@ -43,7 +43,7 @@ while @stillWorking
 		puts "Selected 4 - #{@operations['4']}!"
 		load "commandGenerator.rb"
 	end
-
+	
 	puts "Would you like to perform another operation? (y/n)"
 	if gets.chomp.downcase == 'y'
 		prompt()
